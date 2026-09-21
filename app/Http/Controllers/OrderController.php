@@ -7,6 +7,7 @@ use App\Models\CommercialCondition;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\User;
 use App\Services\OrderUpdateService;
 use App\Services\Pricing\RegionalPriceResolver;
 use App\Support\FlexBalance;
@@ -52,7 +53,7 @@ class OrderController extends Controller
     {
         $products = Product::orderBy('name')->get();
         $customers = Customer::visibleTo()
-            ->with(['region', 'latestOrder.orderItems.product'])
+            ->with(['region', 'user:id,name', 'latestOrder.orderItems.product'])
             ->orderBy('name')
             ->get()
             ->each(function (Customer $customer) {
@@ -60,6 +61,7 @@ class OrderController extends Controller
             });
         $flex = FlexBalance::contextFor($request->user());
         $selectedCustomerId = request()->integer('customer_id') ?: null;
+        $canManageSellers = $request->user()->canManageSellers();
 
         return Inertia::render('app/orders/create-order', [
             'products' => $products,
@@ -70,6 +72,13 @@ class OrderController extends Controller
                 ->with(['products:id', 'commercialCondition'])
                 ->orderBy('name')
                 ->get(),
+            'canManageSellers' => $canManageSellers,
+            'sellers' => $canManageSellers
+                ? User::where('tenant_id', $request->user()->tenant_id)
+                    ->whereIn('roles', [User::ROLE_OWNER, User::ROLE_SELLER])
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                : [],
         ]);
     }
 
@@ -91,6 +100,12 @@ class OrderController extends Controller
         $validatedData = $request->validate([
             'customer_id' => ['required', $customerRule],
             'campaign_id' => ['nullable', Rule::exists('campaigns', 'id')->where('tenant_id', $tenantId)],
+            'user_id' => [
+                'nullable',
+                Rule::exists('users', 'id')->where(function ($query) use ($tenantId) {
+                    $query->where('tenant_id', $tenantId)->whereIn('roles', [User::ROLE_OWNER, User::ROLE_SELLER]);
+                }),
+            ],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => [
                 'required',
@@ -110,6 +125,12 @@ class OrderController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'is_recurring' => ['nullable', 'boolean'],
         ]);
+
+        // Somente quem pode gerenciar vendedores tem permissão para atribuir o
+        // pedido a outro usuário; caso contrário, o pedido fica com quem o criou.
+        $assignedSellerId = $request->user()->canManageSellers()
+            ? ($validatedData['user_id'] ?? null)
+            : null;
 
         try {
             $customer = Customer::visibleTo()->findOrFail($validatedData['customer_id']);
@@ -189,6 +210,7 @@ class OrderController extends Controller
 
             // 1. Criação do Pedido principal
             $order = Order::create([
+                'user_id' => $assignedSellerId,
                 'customer_id' => $validatedData['customer_id'],
                 'commercial_condition_id' => $commercialCondition?->id,
                 'campaign_id' => $campaign?->id,

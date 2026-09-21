@@ -50,7 +50,7 @@ type OrderItem = {
     total: string;
 };
 
-export default function CreateOrder({ customers, products, campaigns, flex, selectedCustomerId }: any) {
+export default function CreateOrder({ customers, products, campaigns, flex, selectedCustomerId, canManageSellers, sellers }: any) {
     const initialCustomer = customers.find((customer: any) => customer.id === selectedCustomerId) ?? null;
     const [selectedCustomer, setSelectedCustomer] = useState<any | null>(initialCustomer);
     const [items, setItems] = useState<OrderItem[]>([]);
@@ -69,8 +69,11 @@ export default function CreateOrder({ customers, products, campaigns, flex, sele
           }
         : null;
 
+    const sellerOptions = (sellers ?? []).map((seller: any) => ({ value: seller.id, label: seller.name }));
+
     const { data, setData, post, processing, errors } = useForm({
         customer_id: initialCustomer?.id ?? '',
+        user_id: initialCustomer?.user?.id ?? '',
         campaign_id: '',
         flex: '',
         discount: '',
@@ -187,6 +190,7 @@ export default function CreateOrder({ customers, products, campaigns, flex, sele
         setData((currentData: any) => ({
             ...currentData,
             customer_id: customer?.id ?? '',
+            user_id: customer?.user?.id ?? '',
             campaign_id: '',
             items: [],
             total: '',
@@ -289,6 +293,26 @@ export default function CreateOrder({ customers, products, campaigns, flex, sele
                                     </select>
                                     <InputError message={errors.campaign_id} />
                                     {selectedCampaign && <div className="text-xs text-muted-foreground">Os produtos da campanha usarão seus valores promocionais.</div>}
+                                </div>
+                            )}
+
+                            {canManageSellers && sellerOptions.length > 0 && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="user_id">Vendedor responsável</Label>
+                                    <Select
+                                        inputId="user_id"
+                                        options={sellerOptions}
+                                        value={sellerOptions.find((option: any) => String(option.value) === String(data.user_id)) ?? null}
+                                        onChange={(selected: any) => setData('user_id', selected?.value ?? '')}
+                                        placeholder="Selecione o vendedor"
+                                        isClearable
+                                        className="rounded-md border border-input text-sm text-foreground shadow-xs"
+                                        styles={reactSelectThemeStyles}
+                                    />
+                                    <InputError className="mt-2" message={errors.user_id} />
+                                    <div className="text-xs text-muted-foreground">
+                                        O pedido aparecerá no app do vendedor selecionado. Se nenhum for escolhido, o pedido fica com você.
+                                    </div>
                                 </div>
                             )}
 
