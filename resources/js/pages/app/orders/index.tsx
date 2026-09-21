@@ -78,6 +78,7 @@ export default function Orders({ orders }: any) {
                             <TableRow>
                                 <TableHead>Pedido</TableHead>
                                 <TableHead>Valores</TableHead>
+                                {!auth.isSeller && <TableHead>Vendedor</TableHead>}
                                 <TableHead>Emissão</TableHead>
                                 <TableHead>
                                     {messageStatus ? (
@@ -113,6 +114,11 @@ export default function Orders({ orders }: any) {
                                                 </div>
                                             </div>
                                         </TableCell>
+                                        {!auth.isSeller && (
+                                            <TableCell>
+                                                <span className="text-sm">{order?.user?.name ?? '-'}</span>
+                                            </TableCell>
+                                        )}
                                         <TableCell>{moment(order.created_at).format('DD/MM/YYYY')}</TableCell>
                                         <TableCell>
                                             {auth.isSeller || order.status == '4' ? (
@@ -138,7 +144,7 @@ export default function Orders({ orders }: any) {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-16 text-center">
+                                    <TableCell colSpan={auth.isSeller ? 5 : 6} className="h-16 text-center">
                                         Não há dados a serem mostrados no momento.
                                     </TableCell>
                                 </TableRow>
@@ -146,7 +152,7 @@ export default function Orders({ orders }: any) {
                         </TableBody>
                         <TableFooter>
                             <TableRow>
-                                <TableCell colSpan={5}>
+                                <TableCell colSpan={auth.isSeller ? 5 : 6}>
                                     <AppPagination data={orders} />
                                 </TableCell>
                             </TableRow>
