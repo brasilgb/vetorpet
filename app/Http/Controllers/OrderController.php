@@ -51,7 +51,16 @@ class OrderController extends Controller
      */
     public function create(Request $request)
     {
-        $products = Product::orderBy('name')->get();
+        $products = Product::with(['regionPrices' => fn ($query) => $query->active()])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Product $product) => [
+                ...$product->toArray(),
+                'special_prices' => $product->regionPrices->map(fn ($regionPrice) => [
+                    'region_id' => $regionPrice->region_id,
+                    'special_price' => (float) $regionPrice->special_price,
+                ])->values(),
+            ]);
         $customers = Customer::visibleTo()
             ->with(['region', 'user:id,name', 'latestOrder.orderItems.product'])
             ->orderBy('name')
@@ -293,8 +302,16 @@ class OrderController extends Controller
     {
         $this->authorizeVisibleOrder($order);
 
-        $products = Product::all();
-        $customers = Customer::visibleTo()->orderBy('name')->get()->each(fn (Customer $customer) => $customer->setAttribute('commercial_condition', CommercialCondition::resolveForCustomer($customer)));
+        $products = Product::with(['regionPrices' => fn ($query) => $query->active()])
+            ->get()
+            ->map(fn (Product $product) => [
+                ...$product->toArray(),
+                'special_prices' => $product->regionPrices->map(fn ($regionPrice) => [
+                    'region_id' => $regionPrice->region_id,
+                    'special_price' => (float) $regionPrice->special_price,
+                ])->values(),
+            ]);
+        $customers = Customer::visibleTo()->with('region')->orderBy('name')->get()->each(fn (Customer $customer) => $customer->setAttribute('commercial_condition', CommercialCondition::resolveForCustomer($customer)));
         $flex = FlexBalance::contextFor($request->user());
         // Carrega os relacionamentos necessários no modelo já injetado pela rota.
         $order->load('customer', 'orderItems');

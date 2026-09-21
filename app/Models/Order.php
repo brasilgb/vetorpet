@@ -41,7 +41,24 @@ class Order extends Model
     protected static function booted(): void
     {
         static::creating(function (Order $order) {
-            if (auth()->hasUser() && $order->user_id === null) {
+            if ($order->user_id !== null) {
+                return;
+            }
+
+            // Um pedido pertence ao vendedor responsável pelo cliente (para que ele
+            // apareça sincronizado no app do vendedor), mesmo quando é criado por um
+            // administrador pelo painel backend em nome desse cliente.
+            $customerOwnerId = $order->customer_id
+                ? Customer::whereKey($order->customer_id)->value('user_id')
+                : null;
+
+            if ($customerOwnerId) {
+                $order->user_id = $customerOwnerId;
+
+                return;
+            }
+
+            if (auth()->hasUser()) {
                 $order->user_id = auth()->id();
             }
         });

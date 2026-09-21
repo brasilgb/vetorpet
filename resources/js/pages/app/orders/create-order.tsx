@@ -113,6 +113,21 @@ export default function CreateOrder({ customers, products, campaigns, flex, sele
     const pricedProducts = useMemo(
         () =>
             products.map((product: any) => {
+                // Um preço especial Produto x Região ativo substitui qualquer outra regra
+                // (campanha, condição comercial de cliente/região/tipo/global) — mesma
+                // prioridade aplicada pelo RegionalPriceResolver no backend.
+                const specialPrice = (product.special_prices ?? []).find(
+                    (row: any) => Number(row.region_id) === Number(selectedCustomer?.region_id),
+                );
+
+                if (specialPrice) {
+                    return {
+                        ...product,
+                        price: Number(Number(specialPrice.special_price).toFixed(2)),
+                        base_price: product.price,
+                    };
+                }
+
                 const isCampaignProduct = selectedCampaign?.products?.some((campaignProduct: any) => campaignProduct.id === product.id);
                 const priceCondition = isCampaignProduct ? selectedCampaign?.commercial_condition : selectedCustomer?.commercial_condition;
                 const adjustment = Number(priceCondition?.price_adjustment_percentage ?? 0);

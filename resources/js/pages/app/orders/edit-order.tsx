@@ -55,9 +55,17 @@ export default function EditOrder({ order, customers, products, flex }: any) {
     const adjustment = Number(selectedCustomer?.commercial_condition?.price_adjustment_percentage ?? 0);
     const rows = useMemo(() => data.items.map((item: any) => {
         const product = products.find((candidate: any) => Number(candidate.id) === item.product_id);
-        const price = Math.round(Number(product?.price ?? 0) * (1 + adjustment / 100) * 100) / 100;
+        // Um preço especial Produto x Região ativo substitui a condição comercial — mesma
+        // prioridade aplicada pelo RegionalPriceResolver no backend, que recalcula o preço
+        // real ao salvar; aqui é só para exibir a prévia correta.
+        const specialPrice = (product?.special_prices ?? []).find(
+            (row: any) => Number(row.region_id) === Number(selectedCustomer?.region_id),
+        );
+        const price = specialPrice
+            ? Number(specialPrice.special_price)
+            : Math.round(Number(product?.price ?? 0) * (1 + adjustment / 100) * 100) / 100;
         return { ...item, product, price, total: Math.max(price * item.quantity + Number(item.discount_amount ?? 0), 0) };
-    }), [adjustment, data.items, products]);
+    }), [adjustment, data.items, products, selectedCustomer]);
     const subtotal = rows.reduce((sum: number, item: any) => sum + item.total, 0);
     const payable = Math.max(Number(data.adjusted_total || 0) - Number(data.discount || 0), 0);
     const filteredProducts = products.filter((product: any) => {

@@ -1,20 +1,19 @@
-FROM php:8.4-fpm
-
-COPY sophos-ca.crt /usr/local/share/ca-certificates/sophos-ca.crt
-RUN update-ca-certificates
-
-RUN apt-get update && apt-get install -y \
-    git curl libpng-dev libonig-dev libxml2-dev zip unzip libzip-dev \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
-
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
-WORKDIR /var/www/html
-
+FROM node:22-bookworm-slim AS frontend
+WORKDIR /app
+COPY package.json yarn.lock ./
+RUN corepack enable && yarn install --frozen-lockfile
 COPY . .
-
-RUN composer install --no-interaction --optimize-autoloader
-
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-
-EXPOSE 9000
+RUN yarn build
+FROM php:8.4-fpm
+RUN apt-get update && apt-get install -y --no-install-recommends git curl libpng-dev libonig-dev libxml2-dev libzip-dev zip unzip && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip opcache && rm -rf /var/lib/apt/lists/*
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+WORKDIR /var/www/html
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --no-progress --optimize-autoloader --no-scripts
+COPY . .
+RUN composer dump-autoload --no-dev --optimize --no-interaction && mkdir -p /opt/public-build && chown -R www-data:www-data storage bootstrap/cache
+COPY --from=frontend /app/public/build /opt/public-build
+COPY docker-entrypoint.sh /usr/local/bin/infra-entrypoint
+RUN chmod +x /usr/local/bin/infra-entrypoint
+ENTRYPOINT ["infra-entrypoint"]
+CMD ["php-fpm", "-F"]
