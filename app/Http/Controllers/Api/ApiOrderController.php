@@ -111,10 +111,8 @@ class ApiOrderController extends Controller
             foreach ($validatedData['items'] as $item) {
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
 
-                if ($product->quantity < $item['quantity']) {
-                    throw new \Exception('Estoque insuficiente para o produto: '.$product->name);
-                }
-
+                // Estoque insuficiente não bloqueia o pedido: o saldo fica negativo
+                // e o pedido passa a valer como uma pré-venda até a reposição.
                 $itemCondition = $campaign && in_array($product->id, $campaignProductIds, true)
                     ? $campaign->commercialCondition
                     : $customerCondition;

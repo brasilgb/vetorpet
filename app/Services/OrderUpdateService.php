@@ -49,10 +49,8 @@ final class OrderUpdateService
                 $product = Product::query()->lockForUpdate()->findOrFail($item['product_id']);
                 $quantity = (int) $item['quantity'];
 
-                if ($product->quantity < $quantity) {
-                    throw new RuntimeException('Estoque insuficiente para o produto: '.$product->name);
-                }
-
+                // Estoque insuficiente não bloqueia o pedido: o saldo fica negativo
+                // e o pedido passa a valer como uma pré-venda até a reposição.
                 $itemCondition = $campaign && in_array($product->id, $campaignProductIds, true)
                     ? $campaign->commercialCondition
                     : $customerCondition;
@@ -116,6 +114,7 @@ final class OrderUpdateService
             $flexContext = FlexBalance::contextFor(auth()->user());
             $order->update([
                 'customer_id' => $customer->id,
+                ...(array_key_exists('user_id', $data) ? ['user_id' => $data['user_id']] : []),
                 'commercial_condition_id' => $condition?->id,
                 'subtotal' => $subtotal,
                 'adjusted_total' => $adjustedTotal,

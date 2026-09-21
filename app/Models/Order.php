@@ -45,8 +45,16 @@ class Order extends Model
                 return;
             }
 
+            // Quando é o próprio vendedor autenticado fazendo o pedido (app ou painel),
+            // o pedido é dele — nunca do dono cadastrado do cliente.
+            if (auth()->hasUser() && ! auth()->user()->canManageTeam()) {
+                $order->user_id = auth()->id();
+
+                return;
+            }
+
             // Um pedido pertence ao vendedor responsável pelo cliente (para que ele
-            // apareça sincronizado no app do vendedor), mesmo quando é criado por um
+            // apareça sincronizado no app do vendedor), quando é criado por um
             // administrador pelo painel backend em nome desse cliente.
             $customerOwnerId = $order->customer_id
                 ? Customer::whereKey($order->customer_id)->value('user_id')

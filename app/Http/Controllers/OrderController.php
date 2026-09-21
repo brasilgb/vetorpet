@@ -7,6 +7,7 @@ use App\Models\CommercialCondition;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\User;
 use App\Services\OrderUpdateService;
 use App\Services\Pricing\RegionalPriceResolver;
 use App\Support\FlexBalance;
@@ -247,15 +248,8 @@ class OrderController extends Controller
                 // onde duas pessoas compram o último item ao mesmo tempo.
                 $product = Product::lockForUpdate()->findOrFail($item['product_id']);
 
-                // Verifica se a quantidade em estoque é suficiente
-                if ($product->quantity < $item['quantity']) {
-                    // Se não houver estoque, lança uma exceção.
-                    // Isso vai acionar o DB::rollBack() no bloco catch.
-                    throw new \Exception('Estoque insuficiente para o produto: '.$product->name);
-                }
-
-                // Decrementa o estoque. O método decrement() é atômico e seguro.
-                // Substitua 'stock' pelo nome real da sua coluna de estoque no banco de dados.
+                // Estoque insuficiente não bloqueia o pedido: o saldo fica negativo
+                // e o pedido passa a valer como uma pré-venda até a reposição.
                 $product->decrement('quantity', $item['quantity']);
             }
             // --- FIM DA NOVA LÓGICA ---
@@ -295,7 +289,15 @@ class OrderController extends Controller
         $order->load('customer', 'orderItems');
 
         // O método orderItems() retorna a relação, para obter os itens, acesse a propriedade.
-        return Inertia::render('app/orders/edit-order', ['order' => $order, 'products' => $products, 'customers' => $customers, 'flex' => $flex, 'orderitems' => $order->orderItems]);
+        return Inertia::render('app/orders/edit-order', [
+            'order' => $order,
+            'products' => $products,
+            'customers' => $customers,
+            'flex' => $flex,
+            'orderitems' => $order->orderItems,
+            'users' => $this->availableUsers($request),
+            'canManageTeam' => $request->user()->canManageTeam(),
+        ]);
     }
 
     /**
@@ -333,6 +335,7 @@ class OrderController extends Controller
         $tenantId = $request->user()->tenant_id;
         $validated = $request->validate([
             'customer_id' => ['required', Rule::exists('customers', 'id')->where('tenant_id', $tenantId)],
+            'user_id' => ['nullable', Rule::exists('users', 'id')->where('tenant_id', $tenantId)],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', Rule::exists('products', 'id')->where('tenant_id', $tenantId)],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
@@ -344,6 +347,11 @@ class OrderController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'is_recurring' => ['nullable', 'boolean'],
         ]);
+
+        // Só um admin/dono pode reatribuir o vendedor responsável pelo pedido.
+        if (! $request->user()->canManageTeam() || empty($validated['user_id'])) {
+            unset($validated['user_id']);
+        }
 
         try {
             app(OrderUpdateService::class)->update($order, $validated);
@@ -523,5 +531,14 @@ class OrderController extends Controller
     private function authorizeOrderManagement(): void
     {
         abort_unless(auth()->user()?->canManageTeam(), 403);
+    }
+
+    private function availableUsers(Request $request)
+    {
+        if (! $request->user()->canManageTeam()) {
+            return collect([$request->user()->only(['id', 'name', 'email'])]);
+        }
+
+        return User::where('tenant_id', $request->user()->tenant_id)->where('status', true)->orderBy('name')->get(['id', 'name', 'email']);
     }
 }
