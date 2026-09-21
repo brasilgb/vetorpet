@@ -1,10 +1,11 @@
+import { useToast } from '@/components/toaster';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/react';
-import { Download, Smartphone } from 'lucide-react';
+import { Copy, Download, Smartphone } from 'lucide-react';
 
 type AndroidApp = {
     name: string;
@@ -22,6 +23,8 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 function AppCard({ app }: { app: AndroidApp }) {
+    const toast = useToast();
+
     return (
         <Card>
             <CardHeader>
@@ -41,20 +44,32 @@ function AppCard({ app }: { app: AndroidApp }) {
                 {app.size && <p>Tamanho: {app.size}</p>}
                 <p>Para instalar, o Android poderá solicitar autorização para aplicativos desta fonte.</p>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex gap-2">
                 {app.available ? (
-                    <Button asChild className="w-full">
+                    <Button asChild className="flex-1">
                         <a href={app.url} download={app.filename}>
                             <Download className="size-4" />
                             Baixar APK
                         </a>
                     </Button>
                 ) : (
-                    <Button className="w-full" disabled>
+                    <Button className="flex-1" disabled>
                         <Download className="size-4" />
                         APK não disponível
                     </Button>
                 )}
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    disabled={!app.available}
+                    onClick={() => {
+                        navigator.clipboard.writeText(app.url);
+                        toast.success('Link copiado!');
+                    }}
+                >
+                    <Copy className="size-4" />
+                </Button>
             </CardFooter>
         </Card>
     );
