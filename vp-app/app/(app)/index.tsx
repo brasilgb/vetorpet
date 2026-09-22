@@ -196,12 +196,17 @@ export default function AgendaScreen() {
           const downloaded = downloadedUuids.has(item.uuid);
           const downloading = downloadingUuid === item.uuid;
           const pendingSync = pendingSyncUuids.has(item.uuid);
+          const canceled = item.status === 'canceled';
 
           return (
-            <View className="gap-3 rounded-2xl border border-green-100 bg-white p-4 shadow-sm shadow-green-950/5">
+            <View
+              className={`gap-3 rounded-2xl border p-4 shadow-sm shadow-green-950/5 ${canceled ? 'border-red-100 bg-red-50' : 'border-green-100 bg-white'}`}
+            >
               <View className="flex-row items-center justify-between">
-                <Text className="text-base font-semibold text-green-950">{item.establishment.name}</Text>
-                <Text className="text-xs font-medium uppercase text-neutral-500">
+                <Text className={`text-base font-semibold ${canceled ? 'text-red-900' : 'text-green-950'}`}>
+                  {item.establishment.name}
+                </Text>
+                <Text className={`text-xs font-medium uppercase ${canceled ? 'text-red-700' : 'text-neutral-500'}`}>
                   {STATUS_LABELS[item.status] ?? item.status}
                 </Text>
               </View>
@@ -214,14 +219,18 @@ export default function AgendaScreen() {
                 <Text className="text-sm text-neutral-600">
                   {formatScheduledAt(item.scheduled_at)} · {item.service_type}
                 </Text>
-                <Text className="text-xs text-neutral-500">{downloaded ? 'Dados baixados' : 'Não baixado'}</Text>
+                {!canceled ? (
+                  <Text className="text-xs text-neutral-500">{downloaded ? 'Dados baixados' : 'Não baixado'}</Text>
+                ) : null}
               </View>
 
               {pendingSync ? (
                 <Text className="text-xs font-medium uppercase text-amber-700">Dados aguardando sincronização</Text>
               ) : null}
 
-              {!downloaded ? (
+              {canceled ? (
+                <Text className="text-sm text-red-700">Visita cancelada. Não é mais possível iniciar ou continuar o atendimento.</Text>
+              ) : !downloaded ? (
                 <Pressable
                   onPress={() => downloadDetail(item)}
                   disabled={downloading}

@@ -25,6 +25,7 @@ class PestControlVisitService
 
     public function checkIn(Visit $visit, array $data, User $user): Visit
     {
+        $this->assertNotCanceled($visit);
         $visit->loadMissing('establishment');
         $distance = $this->distanceFromEstablishment($visit, $data['latitude'] ?? null, $data['longitude'] ?? null);
         $outOfRange = $this->isOutOfRange($visit, $distance);
@@ -67,6 +68,7 @@ class PestControlVisitService
 
     public function checkOut(Visit $visit, array $data, User $user): Visit
     {
+        $this->assertNotCanceled($visit);
         abort_unless($visit->isCheckedIn(), 422, 'A visita ainda não teve check-in registrado.');
 
         $checkoutAt = $this->parseDeviceTime($data['device_time'] ?? null);
@@ -90,6 +92,8 @@ class PestControlVisitService
 
     public function recordInspection(Visit $visit, ControlPoint $point, array $data, User $user): VisitInspection
     {
+        $this->assertNotCanceled($visit);
+
         return DB::transaction(function () use ($visit, $point, $data, $user) {
             $inspection = VisitInspection::updateOrCreate(
                 ['visit_id' => $visit->id, 'control_point_id' => $point->id],
@@ -133,6 +137,8 @@ class PestControlVisitService
 
     public function sign(Visit $visit, array $data, User $user): VisitSignature
     {
+        $this->assertNotCanceled($visit);
+
         return DB::transaction(function () use ($visit, $data, $user) {
             $visit->signatures()->where('superseded', false)->update(['superseded' => true]);
             $nextVersion = (int) $visit->signatures()->max('version') + 1;
@@ -189,6 +195,16 @@ class PestControlVisitService
         $this->auditLogger->log($visit->tenant, $user, 'visit.canceled', $visit, ['reason' => $reason]);
 
         return $visit->fresh();
+    }
+
+    /**
+     * Visita cancelada é estado final: nenhuma escrita (check-in, check-out,
+     * inspeção, assinatura) pode seguir depois disso, seja pelo painel web
+     * ou pelo app do técnico — os dois passam por aqui.
+     */
+    private function assertNotCanceled(Visit $visit): void
+    {
+        abort_if($visit->status === Visit::STATUS_CANCELED, 409, 'Esta visita foi cancelada e não pode mais ser alterada.');
     }
 
     private function parseDeviceTime(?string $deviceTime): Carbon

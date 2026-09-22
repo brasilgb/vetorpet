@@ -25,6 +25,7 @@ class VisitMediaController extends Controller
     public function store(Request $request, Visit $visit): RedirectResponse
     {
         abort_unless($this->permissions->has($request->user(), 'pest_control.visits.edit'), 403);
+        abort_if($visit->status === Visit::STATUS_CANCELED, 409, 'Esta visita foi cancelada e não pode mais ser alterada.');
 
         $data = $request->validate([
             'file' => ['required', 'file', 'mimes:jpeg,jpg,png,webp,pdf', 'max:5120'],

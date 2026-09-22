@@ -26,6 +26,7 @@ class VisitMediaController extends Controller
     {
         $user = $request->user();
         abort_unless($user->isPestControlTechnician(), 404);
+        abort_if($visit->status === Visit::STATUS_CANCELED, 409, 'Esta visita foi cancelada e não pode mais ser alterada.');
 
         $existing = VisitMedia::where('uuid', $request->validated('uuid'))->first();
         if ($existing) {

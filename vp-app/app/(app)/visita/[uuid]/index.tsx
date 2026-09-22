@@ -120,6 +120,7 @@ export default function VisitDetailScreen() {
 
   const { visit } = detail;
   const points = visit.establishment.control_points;
+  const canceled = visit.status === 'canceled';
 
   const reviewed = points.filter((point) => localInspections.has(point.id)).length;
   const occurrences = points.filter((point) => localInspections.get(point.id)?.draft.not_inspected).length;
@@ -139,7 +140,13 @@ export default function VisitDetailScreen() {
         <Text className="text-sm text-neutral-600">{formatScheduledAt(visit.scheduled_at)}</Text>
         <Text className="text-sm text-neutral-600">{visit.service_type}</Text>
 
-        {visit.checkin_at ? (
+        {canceled ? (
+          <View className="mt-2 rounded-xl border border-red-100 bg-red-50 p-3">
+            <Text className="text-sm font-medium text-red-700">
+              Visita cancelada. Não é mais possível iniciar ou continuar o atendimento.
+            </Text>
+          </View>
+        ) : visit.checkin_at ? (
           <Text className="text-sm font-medium text-green-700">
             Check-in feito às {new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short' }).format(new Date(visit.checkin_at))}
           </Text>
@@ -163,9 +170,11 @@ export default function VisitDetailScreen() {
         ) : null}
       </View>
 
-      <View className="border-t border-green-100 px-5 pt-4">
-        <PhotoEvidenceSection visitUuid={uuid} pointId={null} categories={VISIT_PHOTO_CATEGORIES} />
-      </View>
+      {!canceled ? (
+        <View className="border-t border-green-100 px-5 pt-4">
+          <PhotoEvidenceSection visitUuid={uuid} pointId={null} categories={VISIT_PHOTO_CATEGORIES} />
+        </View>
+      ) : null}
 
       <View className="gap-2 border-t border-green-100 px-5 pt-4">
         <Text className="text-sm font-semibold uppercase text-neutral-500">
@@ -190,8 +199,9 @@ export default function VisitDetailScreen() {
 
           return (
             <Pressable
-              onPress={() => router.push(`/visita/${uuid}/ponto/${item.id}`)}
-              className={`gap-1 rounded-2xl border p-4 ${needsAttention ? 'border-amber-300 bg-amber-50' : 'border-green-100 bg-white'}`}
+              onPress={() => !canceled && router.push(`/visita/${uuid}/ponto/${item.id}`)}
+              disabled={canceled}
+              className={`gap-1 rounded-2xl border p-4 ${canceled ? 'opacity-50' : ''} ${needsAttention ? 'border-amber-300 bg-amber-50' : 'border-green-100 bg-white'}`}
             >
               <View className="flex-row items-center justify-between">
                 <Text className="text-base font-medium text-green-950">{item.code ?? item.label}</Text>
@@ -215,7 +225,7 @@ export default function VisitDetailScreen() {
           <Text className="text-neutral-500">Nenhum ponto de controle cadastrado para este estabelecimento.</Text>
         }
         ListFooterComponent={
-          visit.checkin_at && !visit.checkout_at ? (
+          !canceled && visit.checkin_at && !visit.checkout_at ? (
             <Pressable
               onPress={() => router.push(`/visita/${uuid}/resumo`)}
               className="mt-2 min-h-14 items-center justify-center rounded-2xl bg-green-600 px-4"

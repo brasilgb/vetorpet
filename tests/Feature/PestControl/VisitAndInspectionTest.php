@@ -233,6 +233,45 @@ test('check-in outside the establishment radius does not block, but raises an au
         ->and(AuditLog::where('action', 'visit.checkin.out_of_range')->where('subject_id', $visit->id)->exists())->toBeTrue();
 });
 
+test('a canceled visit rejects check-in, check-out, inspection and signature on the web panel', function () {
+    $tenant = vtTenant('3a');
+    $owner = vtOwner($tenant, '3a');
+    vtActivateModule($tenant, vtRoot('3a'));
+    $establishment = vtEstablishment($tenant);
+    $point = ControlPoint::create(['tenant_id' => $tenant->id, 'establishment_id' => $establishment->id, 'code' => 'P-01']);
+    $visit = Visit::create([
+        'tenant_id' => $tenant->id,
+        'establishment_id' => $establishment->id,
+        'technician_id' => $owner->id,
+        'scheduled_at' => now(),
+        'status' => Visit::STATUS_CANCELED,
+        'canceled_reason' => 'Cliente pediu para remarcar.',
+    ]);
+
+    $this->actingAs($owner)->patch(route('app.pest-control.visits.check-in', $visit), [
+        'latitude' => -23.5505000,
+        'longitude' => -46.6333000,
+    ])->assertStatus(409);
+
+    $this->actingAs($owner)->patch(route('app.pest-control.visits.check-out', $visit), [])->assertStatus(409);
+
+    $this->actingAs($owner)->post(route('app.pest-control.visits.inspections.store', [$visit, $point]), [
+        'consumption_code' => '0',
+    ])->assertStatus(409);
+
+    $this->actingAs($owner)->post(route('app.pest-control.visits.signature.store', $visit), [
+        'responsible_name' => 'Maria Responsável',
+        'signature' => 'data:image/png;base64,'.base64_encode('fake-png-bytes'),
+    ])->assertStatus(409);
+
+    $visit->refresh();
+    expect($visit->status)->toBe(Visit::STATUS_CANCELED)
+        ->and($visit->checkin_at)->toBeNull()
+        ->and($visit->checkout_at)->toBeNull()
+        ->and(VisitInspection::where('visit_id', $visit->id)->exists())->toBeFalse()
+        ->and(VisitSignature::where('visit_id', $visit->id)->exists())->toBeFalse();
+});
+
 test('an inspection is persisted per control point with species found, and not_inspected requires a reason', function () {
     $tenant = vtTenant('4');
     $owner = vtOwner($tenant, '4');

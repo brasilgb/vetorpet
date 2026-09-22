@@ -158,3 +158,25 @@ test('a technician can sign and check out a visit assigned to another technician
 
     $this->patchJson("/api/pest-control/v1/visits/{$visit->uuid}/check-out", [])->assertOk();
 });
+
+test('a canceled visit rejects check-out and signature via the mobile API, even if it was already checked in', function () {
+    $tenant = closeoutTenant('5');
+    app(TenantModuleService::class)->activate($tenant, TenantModule::KEY_PEST_CONTROL, closeoutRoot('5'));
+    $establishment = closeoutEstablishment($tenant);
+    $technician = closeoutTechnician($tenant, '5');
+    $visit = closeoutVisit($tenant, $establishment, $technician, ['status' => Visit::STATUS_CANCELED]);
+
+    Sanctum::actingAs($technician);
+
+    $this->patchJson("/api/pest-control/v1/visits/{$visit->uuid}/check-in", [
+        'latitude' => -23.5505000,
+        'longitude' => -46.6333000,
+    ])->assertStatus(409);
+
+    $this->postJson("/api/pest-control/v1/visits/{$visit->uuid}/signature", [
+        'responsible_name' => 'Alguém',
+        'signature' => 'data:image/png;base64,'.base64_encode('x'),
+    ])->assertStatus(409);
+
+    $this->patchJson("/api/pest-control/v1/visits/{$visit->uuid}/check-out", [])->assertStatus(409);
+});
