@@ -1,10 +1,17 @@
+import { cssInterop } from 'nativewind';
 import { Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, Text, TextInput, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError, useAuth } from '@/lib/auth';
+
+cssInterop(KeyboardAwareScrollView, {
+  className: 'style',
+  contentContainerClassName: 'contentContainerStyle',
+});
 
 export default function LoginScreen() {
   const { login, isAuthenticated, isLoading } = useAuth();
@@ -37,13 +44,14 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-green-950">
+    <View className="flex-1 bg-green-950">
       <StatusBar style="light" backgroundColor="#052e16" />
       <View className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-green-800" />
       <View className="absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-green-900" />
 
       <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
-        <ScrollView
+        <KeyboardAwareScrollView
+          bottomOffset={100}
           contentContainerClassName="grow justify-center px-5 py-8"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -121,8 +129,8 @@ export default function LoginScreen() {
             <Text className="text-xs font-medium text-neutral-400">VetorPet · Controle de Pragas</Text>
           </View>
         </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
