@@ -116,6 +116,22 @@ test('a user with visits.create can schedule a visit, and it is audited', functi
         ->and(AuditLog::where('action', 'visit.scheduled')->where('subject_id', $visit->id)->exists())->toBeTrue();
 });
 
+test('a visit can be scheduled without a technician for personal attendance', function () {
+    $tenant = vtTenant('1a');
+    $owner = vtOwner($tenant, '1a');
+    vtActivateModule($tenant, vtRoot('1a'));
+    $establishment = vtEstablishment($tenant);
+
+    $this->actingAs($owner)->post(route('app.pest-control.visits.store'), [
+        'establishment_id' => $establishment->id,
+        'scheduled_at' => now()->addDay()->toDateTimeString(),
+        'service_type' => 'Manutenção',
+    ])->assertRedirect();
+
+    $visit = Visit::where('tenant_id', $tenant->id)->firstOrFail();
+    expect($visit->technician_id)->toBeNull();
+});
+
 test('scheduling a visit rejects a technician_id that is not a registered technician (seller or admin)', function () {
     $tenant = vtTenant('1b');
     $owner = vtOwner($tenant, '1b');

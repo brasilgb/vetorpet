@@ -140,7 +140,7 @@ test('check-in never fabricates coordinates: a device without GPS can check in w
     expect($response->json('visit.checkin_distance_meters'))->toBeNull();
 });
 
-test('a technician cannot check in on a visit assigned to another technician', function () {
+test('a technician can check in on a visit assigned to another technician, assuming the attendance personally', function () {
     $tenant = checkinTenant('4');
     app(TenantModuleService::class)->activate($tenant, TenantModule::KEY_PEST_CONTROL, checkinRoot('4'));
     $establishment = checkinEstablishment($tenant);
@@ -150,10 +150,29 @@ test('a technician cannot check in on a visit assigned to another technician', f
 
     Sanctum::actingAs($technicianA);
 
-    $this->patchJson("/api/pest-control/v1/visits/{$visit->uuid}/check-in", [
+    $response = $this->patchJson("/api/pest-control/v1/visits/{$visit->uuid}/check-in", [
         'latitude' => -23.5505000,
         'longitude' => -46.6333000,
-    ])->assertNotFound();
+    ])->assertOk();
+
+    expect($response->json('visit.technician_id'))->toBe($technicianB->id);
+});
+
+test('a technician assumes an unassigned visit personally on check-in', function () {
+    $tenant = checkinTenant('5');
+    app(TenantModuleService::class)->activate($tenant, TenantModule::KEY_PEST_CONTROL, checkinRoot('5'));
+    $establishment = checkinEstablishment($tenant);
+    $technician = checkinTechnician($tenant, '5');
+    $visit = checkinVisit($tenant, $establishment, $technician, ['technician_id' => null]);
+
+    Sanctum::actingAs($technician);
+
+    $response = $this->patchJson("/api/pest-control/v1/visits/{$visit->uuid}/check-in", [
+        'latitude' => -23.5505000,
+        'longitude' => -46.6333000,
+    ])->assertOk();
+
+    expect($response->json('visit.technician_id'))->toBe($technician->id);
 });
 
 test('a completed visit cannot receive a new check-in', function () {

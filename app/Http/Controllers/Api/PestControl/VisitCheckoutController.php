@@ -24,7 +24,7 @@ class VisitCheckoutController extends Controller
     public function store(VisitCheckoutRequest $request, Visit $visit): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->isPestControlTechnician() && $visit->technician_id === $user->id, 404);
+        abort_unless($user->isPestControlTechnician(), 404);
 
         $visit = $this->visitService->checkOut($visit, $request->validated(), $user);
 

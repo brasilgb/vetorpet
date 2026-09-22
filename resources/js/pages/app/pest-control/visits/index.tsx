@@ -131,7 +131,7 @@ export default function PestControlVisits({ visits, filters, establishments, tec
                                     <TableRow key={visit.id}>
                                         <TableCell>{moment(visit.scheduled_at).format('DD/MM/YYYY HH:mm')}</TableCell>
                                         <TableCell>{visit.establishment?.name}</TableCell>
-                                        <TableCell>{visit.technician?.name}</TableCell>
+                                        <TableCell>{visit.technician?.name ?? 'Atendimento pessoal'}</TableCell>
                                         <TableCell>
                                             <Badge variant={statusVariant[visit.status] ?? 'outline'}>
                                                 {statuses?.[visit.status] ?? visit.status}

@@ -511,7 +511,7 @@ export default function ShowPestControlVisit({ visit, products, species, consump
                         </div>
                         <div>
                             <dt className="text-muted-foreground">Técnico</dt>
-                            <dd>{visit.technician?.name}</dd>
+                            <dd>{visit.technician?.name ?? 'Atendimento pessoal (ainda não atribuído)'}</dd>
                         </div>
                         <div>
                             <dt className="text-muted-foreground">Agendamento</dt>

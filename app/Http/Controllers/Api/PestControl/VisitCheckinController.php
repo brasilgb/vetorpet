@@ -21,7 +21,7 @@ class VisitCheckinController extends Controller
     public function store(VisitCheckinRequest $request, Visit $visit): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->isPestControlTechnician() && $visit->technician_id === $user->id, 404);
+        abort_unless($user->isPestControlTechnician(), 404);
         abort_if(
             in_array($visit->status, [Visit::STATUS_COMPLETED, Visit::STATUS_SYNCED, Visit::STATUS_VALIDATED, Visit::STATUS_CANCELED], true),
             409,

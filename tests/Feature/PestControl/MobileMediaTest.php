@@ -173,7 +173,7 @@ test('a photo tied to a point requires that point to have a synced inspection fi
     expect($response->json('media.inspection_id'))->toBe($inspection->id);
 });
 
-test('a technician cannot upload evidence to another technician visit', function () {
+test('a technician can upload evidence to a visit assigned to another technician', function () {
     Storage::fake('public');
     $tenant = mediaTenant('4');
     app(TenantModuleService::class)->activate($tenant, TenantModule::KEY_PEST_CONTROL, mediaRoot('4'));
@@ -188,7 +188,7 @@ test('a technician cannot upload evidence to another technician visit', function
         'uuid' => (string) Str::uuid(),
         'file' => UploadedFile::fake()->image('local.jpg'),
         'category' => VisitMedia::CATEGORY_SITE_CONDITION,
-    ])->assertNotFound();
+    ])->assertCreated();
 });
 
 test('an invalid category is rejected', function () {

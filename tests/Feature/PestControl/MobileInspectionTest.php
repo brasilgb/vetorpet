@@ -184,7 +184,7 @@ test('a point that does not belong to the visit establishment cannot be inspecte
     ])->assertNotFound();
 });
 
-test('a technician cannot inspect a point on another technician visit', function () {
+test('a technician can inspect a point on a visit assigned to another technician', function () {
     $tenant = inspectionTenant('5');
     app(TenantModuleService::class)->activate($tenant, TenantModule::KEY_PEST_CONTROL, inspectionRoot('5'));
     $establishment = inspectionEstablishment($tenant);
@@ -197,7 +197,7 @@ test('a technician cannot inspect a point on another technician visit', function
 
     $this->postJson("/api/pest-control/v1/visits/{$visit->uuid}/points/{$point->id}/inspection", [
         'consumption_code' => VisitInspection::CONSUMPTION_NONE,
-    ])->assertNotFound();
+    ])->assertOk();
 });
 
 test('not_inspected requires a justification reason', function () {

@@ -30,6 +30,10 @@ class PestControlVisitService
         $outOfRange = $this->isOutOfRange($visit, $distance);
 
         $visit->fill([
+            // Atendimento pessoal: a visita pode não ter técnico pré-atribuído
+            // (technician_id nulo), e quem faz o check-in é quem assume o
+            // atendimento. Se já havia um técnico definido, mantém.
+            'technician_id' => $visit->technician_id ?? $user->id,
             'checkin_at' => $this->parseDeviceTime($data['device_time'] ?? null),
             'checkin_received_at' => now(),
             'checkin_latitude' => $data['latitude'] ?? null,

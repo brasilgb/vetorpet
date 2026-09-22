@@ -12,9 +12,10 @@ use Illuminate\Http\Request;
 
 /**
  * Agenda e detalhe da visita para o aplicativo do técnico (Etapa 2 do
- * app-tecnico.md). Escopo estrito ao técnico autenticado: mesmo dentro do
- * tenant, ninguém aqui vê a visita de outro técnico — isso é checado além
- * do isolamento por tenant que a trait Tenantable já garante nas queries.
+ * app-tecnico.md). Atendimento é direcionado pessoalmente: a visita não é
+ * pré-atribuída a um técnico específico, então todo técnico do tenant vê a
+ * agenda inteira (o isolamento por tenant continua garantido pela trait
+ * Tenantable nas queries) e pode assumir qualquer visita pelo app.
  *
  * Ainda é só leitura (download para uso offline). Check-in, inspeções,
  * fotos e assinatura chegam nas etapas seguintes (3-6).
@@ -30,7 +31,6 @@ class AgendaController extends Controller
         $to = $request->date('to');
 
         $visits = Visit::with('establishment:id,name,street,number,district,city,state,zip_code,latitude,longitude,checkin_radius_meters')
-            ->where('technician_id', $user->id)
             ->where('scheduled_at', '>=', $from)
             ->when($to, fn ($query) => $query->where('scheduled_at', '<=', $to->endOfDay()))
             ->orderBy('scheduled_at')
@@ -44,7 +44,7 @@ class AgendaController extends Controller
     public function show(Request $request, Visit $visit): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->isPestControlTechnician() && $visit->technician_id === $user->id, 404);
+        abort_unless($user->isPestControlTechnician(), 404);
 
         $visit->load([
             'establishment.controlPoints' => fn ($query) => $query->where('active', true)->orderBy('display_order'),

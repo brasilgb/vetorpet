@@ -25,7 +25,7 @@ class VisitMediaController extends Controller
     public function store(VisitMediaUploadRequest $request, Visit $visit): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->isPestControlTechnician() && $visit->technician_id === $user->id, 404);
+        abort_unless($user->isPestControlTechnician(), 404);
 
         $existing = VisitMedia::where('uuid', $request->validated('uuid'))->first();
         if ($existing) {

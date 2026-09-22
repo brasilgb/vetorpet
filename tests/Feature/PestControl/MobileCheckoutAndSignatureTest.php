@@ -141,7 +141,7 @@ test('check-out is rejected when the visit was never checked in', function () {
     $this->patchJson("/api/pest-control/v1/visits/{$visit->uuid}/check-out", [])->assertStatus(422);
 });
 
-test('a technician cannot sign or check out a visit assigned to another technician', function () {
+test('a technician can sign and check out a visit assigned to another technician', function () {
     $tenant = closeoutTenant('4');
     app(TenantModuleService::class)->activate($tenant, TenantModule::KEY_PEST_CONTROL, closeoutRoot('4'));
     $establishment = closeoutEstablishment($tenant);
@@ -154,7 +154,7 @@ test('a technician cannot sign or check out a visit assigned to another technici
     $this->postJson("/api/pest-control/v1/visits/{$visit->uuid}/signature", [
         'responsible_name' => 'Alguém',
         'signature' => 'data:image/png;base64,'.base64_encode('x'),
-    ])->assertNotFound();
+    ])->assertCreated();
 
-    $this->patchJson("/api/pest-control/v1/visits/{$visit->uuid}/check-out", [])->assertNotFound();
+    $this->patchJson("/api/pest-control/v1/visits/{$visit->uuid}/check-out", [])->assertOk();
 });

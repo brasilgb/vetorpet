@@ -22,7 +22,7 @@ class VisitSignatureController extends Controller
     public function store(VisitSignatureRequest $request, Visit $visit): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->isPestControlTechnician() && $visit->technician_id === $user->id, 404);
+        abort_unless($user->isPestControlTechnician(), 404);
 
         $signature = $this->visitService->sign($visit, $request->validated(), $user);
 

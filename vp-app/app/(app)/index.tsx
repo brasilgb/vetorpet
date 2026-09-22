@@ -145,7 +145,7 @@ export default function AgendaScreen() {
       <View className="mx-5 mb-4 rounded-3xl bg-green-950 p-5">
         <View>
           <Text className="text-sm font-medium text-green-300">Olá, {user?.name}</Text>
-          <Text className="mt-1 text-2xl font-bold text-white">Sua agenda</Text>
+          <Text className="mt-1 text-2xl font-bold text-white">Agenda</Text>
           <Text className="mt-1 text-sm text-green-100/70">Visitas técnicas e dados disponíveis offline.</Text>
         </View>
         <View className="mt-4 flex-row gap-2">

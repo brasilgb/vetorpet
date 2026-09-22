@@ -78,7 +78,7 @@ function agendaVisit(Tenant $tenant, Establishment $establishment, User $technic
     ], $overrides));
 }
 
-test('a technician sees only their own upcoming visits in the agenda', function () {
+test('a technician sees every upcoming visit in the agenda, regardless of assigned technician', function () {
     $tenant = agendaTenant('1');
     $root = agendaRoot('1');
     app(TenantModuleService::class)->activate($tenant, TenantModule::KEY_PEST_CONTROL, $root);
@@ -88,7 +88,7 @@ test('a technician sees only their own upcoming visits in the agenda', function 
     $technicianB = agendaTechnician($tenant, '1b');
 
     $ownVisit = agendaVisit($tenant, $establishment, $technicianA);
-    agendaVisit($tenant, $establishment, $technicianB);
+    $othersVisit = agendaVisit($tenant, $establishment, $technicianB);
     agendaVisit($tenant, $establishment, $technicianA, ['scheduled_at' => now()->subDay()]);
 
     Sanctum::actingAs($technicianA);
@@ -96,7 +96,7 @@ test('a technician sees only their own upcoming visits in the agenda', function 
     $response = $this->getJson('/api/pest-control/v1/agenda')->assertOk();
     $uuids = collect($response->json('data'))->pluck('uuid');
 
-    expect($uuids)->toHaveCount(1)->toContain($ownVisit->uuid);
+    expect($uuids)->toHaveCount(2)->toContain($ownVisit->uuid)->toContain($othersVisit->uuid);
     expect($response->json('data.0.establishment.name'))->toBe('Escola Agenda');
 });
 
@@ -125,7 +125,7 @@ test('the agenda endpoint is invisible without the module active and denies non-
     $this->getJson('/api/pest-control/v1/agenda')->assertOk();
 });
 
-test('a technician can download the full detail of their own visit but not of another technician', function () {
+test('a technician can download the full detail of any visit in their tenant', function () {
     $tenant = agendaTenant('3');
     app(TenantModuleService::class)->activate($tenant, TenantModule::KEY_PEST_CONTROL, agendaRoot('3'));
 
@@ -143,7 +143,7 @@ test('a technician can download the full detail of their own visit but not of an
     expect($response->json('visit.establishment.control_points'))->toBeArray();
     expect($response->json('consumption_types'))->toBeArray();
 
-    $this->getJson("/api/pest-control/v1/agenda/{$othersVisit->uuid}")->assertNotFound();
+    $this->getJson("/api/pest-control/v1/agenda/{$othersVisit->uuid}")->assertOk();
 });
 
 test('a visit from another tenant is never reachable even with a guessed uuid', function () {

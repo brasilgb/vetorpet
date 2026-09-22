@@ -22,11 +22,14 @@ class VisitRequest extends FormRequest
                 'required',
                 Rule::exists('pest_control_establishments', 'id')->where('tenant_id', $tenantId),
             ],
-            // Só um usuário cadastrado como técnico/operador do módulo pode
-            // ser designado (ver App\Models\PestControl\Technician) —
-            // vendedores e o administrador do painel não entram aqui.
+            // Técnico é opcional na agenda: o atendimento é direcionado
+            // pessoalmente (qualquer técnico do tenant pode assumir a visita
+            // pelo app), e o technician_id só é preenchido no check-in (ver
+            // PestControlVisitService). Quando informado aqui mesmo assim,
+            // precisa ser um técnico/operador cadastrado no módulo (ver
+            // App\Models\PestControl\Technician).
             'technician_id' => [
-                'required',
+                'nullable',
                 Rule::exists('pest_control_technicians', 'user_id')->where('tenant_id', $tenantId),
             ],
             'scheduled_at' => ['required', 'date'],

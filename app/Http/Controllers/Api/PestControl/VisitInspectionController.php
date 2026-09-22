@@ -31,7 +31,7 @@ class VisitInspectionController extends Controller
     public function store(VisitInspectionRequest $request, Visit $visit, ControlPoint $point): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->isPestControlTechnician() && $visit->technician_id === $user->id, 404);
+        abort_unless($user->isPestControlTechnician(), 404);
         abort_unless($point->establishment_id === $visit->establishment_id, 404);
 
         $existing = VisitInspection::where('visit_id', $visit->id)->where('control_point_id', $point->id)->first();

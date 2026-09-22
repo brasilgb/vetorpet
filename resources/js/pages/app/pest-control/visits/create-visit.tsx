@@ -23,7 +23,7 @@ export default function CreatePestControlVisit({ establishments, technicians, se
 
     const { data, setData, post, processing, errors } = useForm({
         establishment_id: preselectedEstablishmentId,
-        technician_id: technicians?.length === 1 ? technicians[0].id : '',
+        technician_id: '',
         scheduled_at: '',
         service_type: '',
         notes: '',
@@ -77,20 +77,23 @@ export default function CreatePestControlVisit({ establishments, technicians, se
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="technician_id">Técnico</Label>
+                                <Label htmlFor="technician_id">Técnico (opcional)</Label>
                                 <select
                                     id="technician_id"
                                     className={selectClassName}
                                     value={data.technician_id}
                                     onChange={(e) => setData('technician_id', e.target.value)}
                                 >
-                                    <option value="">Selecione</option>
+                                    <option value="">Atendimento pessoal (sem técnico definido)</option>
                                     {technicians?.map((technician: any) => (
                                         <option key={technician.id} value={technician.id}>
                                             {technician.name}
                                         </option>
                                     ))}
                                 </select>
+                                <p className="text-xs text-muted-foreground">
+                                    Sem técnico definido, a visita aparece na agenda de todos e é assumida por quem fizer o atendimento.
+                                </p>
                                 <InputError message={errors.technician_id} />
                             </div>
                         </div>
