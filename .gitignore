@@ -22,3 +22,7 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Sobras locais da migração do public
+/public-old
+/public_vetorpet.zip
