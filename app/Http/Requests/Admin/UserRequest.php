@@ -31,6 +31,9 @@ class UserRequest extends FormRequest
                 'email',
                 Rule::unique('users', 'email')->ignore($this->route('user')),
             ],
+            // Usuários gerenciados aqui pertencem sempre a uma empresa: sem
+            // tenant o cadastro ficaria órfão (ver User::isOrphan).
+            'tenant_id' => 'required|integer|exists:tenants,id',
             'roles' => 'required|in:1,2',
             'password' => ($this->getMethod() == 'POST') ? ['required', 'min:8', 'confirmed', Rules\Password::defaults()] : ['nullable', 'min:8', 'confirmed', Rules\Password::defaults()],
             'password_confirmation' => ($this->getMethod() == 'POST') ? ['required', 'min:8'] : ['nullable', 'min:8'],

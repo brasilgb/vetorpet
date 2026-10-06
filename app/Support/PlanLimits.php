@@ -5,10 +5,12 @@ namespace App\Support;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\SampleRecord;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Visit;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 class PlanLimits
@@ -36,17 +38,32 @@ class PlanLimits
     {
         return [
             'users' => User::where('tenant_id', $this->tenant->id)->count(),
-            'customers' => Customer::withoutGlobalScopes()->where('tenant_id', $this->tenant->id)->count(),
-            'products' => Product::withoutGlobalScopes()->where('tenant_id', $this->tenant->id)->count(),
-            'orders_month' => Order::withoutGlobalScopes()
+            'customers' => $this->withoutSampleRecords(Customer::withoutGlobalScopes(), SampleRecord::TYPE_CUSTOMER)
+                ->where('tenant_id', $this->tenant->id)->count(),
+            'products' => $this->withoutSampleRecords(Product::withoutGlobalScopes(), SampleRecord::TYPE_PRODUCT)
+                ->where('tenant_id', $this->tenant->id)->count(),
+            'orders_month' => $this->withoutSampleRecords(Order::withoutGlobalScopes(), SampleRecord::TYPE_ORDER)
                 ->where('tenant_id', $this->tenant->id)
                 ->where('created_at', '>=', now()->startOfMonth())
                 ->count(),
-            'visits_month' => Visit::withoutGlobalScopes()
+            'visits_month' => $this->withoutSampleRecords(Visit::withoutGlobalScopes(), SampleRecord::TYPE_VISIT)
                 ->where('tenant_id', $this->tenant->id)
                 ->where('created_at', '>=', now()->startOfMonth())
                 ->count(),
         ];
+    }
+
+    /**
+     * Dados de exemplo (trial) não consomem os limites comerciais do plano.
+     */
+    private function withoutSampleRecords(Builder $query, string $type): Builder
+    {
+        $table = $query->getModel()->getTable();
+
+        return $query->whereNotExists(fn ($sample) => $sample->from('sample_records')
+            ->where('sample_records.record_type', $type)
+            ->whereColumn('sample_records.tenant_id', "{$table}.tenant_id")
+            ->whereColumn('sample_records.record_id', "{$table}.id"));
     }
 
     public function limits(): array

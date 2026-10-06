@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Admin\Plan;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\SampleData\SampleDataService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class RegisteredUserController extends Controller
 {
@@ -41,6 +43,7 @@ class RegisteredUserController extends Controller
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'account_type' => ['required', Rule::in([Tenant::PLAN_INDIVIDUAL, Tenant::PLAN_TEAM])],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'sample_data' => ['sometimes', 'boolean'],
         ], [], [
             'name' => 'Nome',
             'email' => 'E-mail',
@@ -50,6 +53,7 @@ class RegisteredUserController extends Controller
             'phone' => 'Telefone',
             'whatsapp' => 'WhatsApp',
             'account_type' => 'Tipo de conta',
+            'sample_data' => 'Dados de exemplo',
         ]);
 
         [$tenant, $user] = DB::transaction(function () use ($data) {
@@ -90,6 +94,15 @@ class RegisteredUserController extends Controller
 
             return [$tenant, $user];
         });
+
+        // Dados de exemplo são opcionais e nunca podem impedir o cadastro.
+        if ($request->boolean('sample_data')) {
+            try {
+                app(SampleDataService::class)->seed($tenant, $user);
+            } catch (Throwable $exception) {
+                report($exception);
+            }
+        }
 
         event(new Registered($user));
         Auth::login($user);

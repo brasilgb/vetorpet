@@ -17,9 +17,15 @@ class AdminAccessMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::user()->tenant_id !== null) {
+        $user = Auth::user();
+
+        if ($user->tenant_id !== null) {
             return Redirect::route('app.dashboard');
         }
+
+        // Sem tenant não basta: o painel administrativo exige o papel root.
+        abort_unless($user->isSuperAdmin(), 403);
+
         return $next($request);
     }
 }

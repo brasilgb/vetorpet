@@ -110,9 +110,23 @@ class User extends Authenticatable
         return $this->pestControlTechnician()->exists();
     }
 
+    /**
+     * Administrador do sistema: exige o papel root explícito. Usuário sem
+     * tenant que não seja root não ganha nenhum privilégio (nem acesso ao
+     * painel /admin, nem leitura sem filtro de tenant).
+     */
     public function isSuperAdmin(): bool
     {
-        return $this->tenant_id === null;
+        return $this->tenant_id === null && (int) $this->roles === self::ROLE_ROOT;
+    }
+
+    /**
+     * Usuário sem tenant e sem papel root: cadastro inconsistente, que não
+     * deve acessar nada.
+     */
+    public function isOrphan(): bool
+    {
+        return $this->tenant_id === null && ! $this->isSuperAdmin();
     }
 
     public function isOwner(): bool
@@ -127,7 +141,7 @@ class User extends Authenticatable
 
     public function canManageTeam(): bool
     {
-        return $this->isSuperAdmin() || $this->isOwner();
+        return $this->isSuperAdmin() || ($this->tenant_id !== null && $this->isOwner());
     }
 
     public function canManageSellers(): bool
@@ -141,6 +155,10 @@ class User extends Authenticatable
 
     public function canManageCatalog(): bool
     {
+        if ($this->isOrphan()) {
+            return false;
+        }
+
         if ($this->isSuperAdmin() || $this->isOwner()) {
             return true;
         }

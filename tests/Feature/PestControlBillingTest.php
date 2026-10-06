@@ -7,6 +7,7 @@ use App\Models\TenantModule;
 use App\Models\User;
 use App\Services\MercadoPagoService;
 use App\Services\TenantModuleService;
+use Inertia\Testing\AssertableInertia as Assert;
 
 function billingTestAccount(string $suffix): array
 {
@@ -142,4 +143,19 @@ test('canceling the module removes the addon from future charges without deletin
     $tenantModule = TenantModule::where('tenant_id', $tenant->id)->firstOrFail();
     expect($tenantModule->status)->toBe(TenantModule::STATUS_CANCELED)
         ->and($tenantModule->logs()->count())->toBe(2);
+});
+
+test('subscription page sends the active addons per billing cycle so the plan card shows the pix total', function () {
+    [$plan, $period, $tenant, $user, $root] = billingTestAccount('4');
+    app(TenantModuleService::class)->activate($tenant, TenantModule::KEY_PEST_CONTROL, $root);
+
+    $this->actingAs($user)
+        ->get(route('app.subscription.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('app/subscription/index')
+            ->where('addonsByInterval.1.0.module_key', 'pest_control')
+            ->where('addonsByInterval.1.0.amount', 30)
+            ->where('addonsByInterval.6.0.amount', 162)
+            ->where('addonsByInterval.12.0.amount', 288));
 });

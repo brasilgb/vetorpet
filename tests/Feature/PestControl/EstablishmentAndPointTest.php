@@ -3,6 +3,8 @@
 use App\Models\PestControl\AuditLog;
 use App\Models\PestControl\ControlPoint;
 use App\Models\PestControl\Establishment;
+use App\Models\PestControl\Visit;
+use App\Models\PestControl\VisitInspection;
 use App\Models\Tenant;
 use App\Models\TenantModule;
 use App\Models\User;
@@ -180,4 +182,50 @@ test('a user with points.manage can create control points and codes are unique p
     ])->assertSessionHasErrors('code');
 
     expect(ControlPoint::where('establishment_id', $establishment->id)->count())->toBe(1);
+});
+
+test('deleting a control point without inspections succeeds', function () {
+    $tenant = epTenant('9');
+    $owner = epOwner($tenant, '9');
+    epActivateModule($tenant, epRoot('9'));
+    $establishment = Establishment::create(['tenant_id' => $tenant->id, 'name' => 'Clínica Sul']);
+    $point = ControlPoint::create(['tenant_id' => $tenant->id, 'establishment_id' => $establishment->id, 'code' => 'P-01']);
+
+    $this->actingAs($owner)
+        ->delete(route('app.pest-control.points.destroy', $point))
+        ->assertRedirect(route('app.pest-control.points.index'));
+
+    expect(ControlPoint::find($point->id))->toBeNull();
+});
+
+test('deleting a control point with inspections is blocked', function () {
+    $tenant = epTenant('10');
+    $owner = epOwner($tenant, '10');
+    epActivateModule($tenant, epRoot('10'));
+    $establishment = Establishment::create(['tenant_id' => $tenant->id, 'name' => 'Mercado Norte']);
+    $point = ControlPoint::create(['tenant_id' => $tenant->id, 'establishment_id' => $establishment->id, 'code' => 'P-01']);
+    $visit = Visit::create([
+        'tenant_id' => $tenant->id,
+        'establishment_id' => $establishment->id,
+        'technician_id' => $owner->id,
+        'scheduled_at' => now(),
+        'service_type' => 'Dedetização',
+        'status' => Visit::STATUS_IN_PROGRESS,
+    ]);
+    VisitInspection::create([
+        'tenant_id' => $tenant->id,
+        'visit_id' => $visit->id,
+        'control_point_id' => $point->id,
+        'technician_id' => $owner->id,
+        'inspected_at' => now(),
+        'consumption_code' => VisitInspection::CONSUMPTION_NONE,
+    ]);
+
+    $this->actingAs($owner)
+        ->delete(route('app.pest-control.points.destroy', $point))
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    expect(ControlPoint::find($point->id))->not->toBeNull()
+        ->and(VisitInspection::where('control_point_id', $point->id)->count())->toBe(1);
 });

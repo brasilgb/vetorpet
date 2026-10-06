@@ -1,3 +1,4 @@
+import ActionDelete from '@/components/action-delete';
 import AppPagination, { PaginationSummary } from '@/components/app-pagination';
 import InputSearch from '@/components/inputSearch';
 import { Badge } from '@/components/ui/badge';
@@ -48,7 +49,7 @@ export default function PestControlPoints({ points }: any) {
                                 <TableHead>Estabelecimento</TableHead>
                                 <TableHead>Categoria</TableHead>
                                 <TableHead>Status</TableHead>
-                                <TableHead className="min-w-[80px]"></TableHead>
+                                <TableHead className="min-w-[120px]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -64,12 +65,15 @@ export default function PestControlPoints({ points }: any) {
                                         <TableCell>
                                             <Badge variant={point.active ? 'secondary' : 'destructive'}>{point.active ? 'Ativo' : 'Inativo'}</Badge>
                                         </TableCell>
-                                        <TableCell>
-                                            <Button asChild size="icon" className="bg-orange-500 text-white hover:bg-orange-600">
-                                                <Link href={route('app.pest-control.points.edit', point.id)}>
-                                                    <Edit className="h-4 w-4" />
-                                                </Link>
-                                            </Button>
+                                        <TableCell className="min-w-[120px]">
+                                            <div className="flex flex-wrap justify-end gap-2">
+                                                <Button asChild size="icon" className="bg-orange-500 text-white hover:bg-orange-600" title="Editar">
+                                                    <Link href={route('app.pest-control.points.edit', point.id)}>
+                                                        <Edit className="h-4 w-4" />
+                                                    </Link>
+                                                </Button>
+                                                <ActionDelete title="este ponto de controle" url="app.pest-control.points.destroy" param={point.id} />
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))

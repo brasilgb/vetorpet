@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\Region;
 use App\Models\User;
+use App\Services\SampleData\SampleDataService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, SampleDataService $sampleDataService)
     {
         $start = now()->startOfMonth();
         $end = now()->endOfDay();
@@ -53,7 +54,28 @@ class DashboardController extends Controller
                 ->get(),
             'recentOrders' => (clone $ordersQuery)->with('customer', 'user:id,name', 'campaign:id,name')->latest()->limit(8)->get(),
             'statusBreakdown' => $this->statusBreakdown($ordersQuery),
+            'sampleData' => $this->sampleDataState($request, $sampleDataService),
         ]);
+    }
+
+    /**
+     * Dados de exemplo da avaliação: só o responsável pela conta vê o aviso e
+     * as ações de criar/remover.
+     */
+    private function sampleDataState(Request $request, SampleDataService $sampleDataService): ?array
+    {
+        $user = $request->user();
+
+        if (! $user->tenant_id || ! $user->isOwner()) {
+            return null;
+        }
+
+        $hasSampleData = $sampleDataService->hasSampleData($user->tenant);
+
+        return [
+            'active' => $hasSampleData,
+            'canCreate' => ! $hasSampleData && $user->tenant->isOnTrial() && $sampleDataService->canSeed($user->tenant),
+        ];
     }
 
     public function export(Request $request): StreamedResponse

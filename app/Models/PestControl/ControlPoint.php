@@ -5,6 +5,7 @@ namespace App\Models\PestControl;
 use App\Traits\Tenantable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ControlPoint extends Model
 {
@@ -47,5 +48,10 @@ class ControlPoint extends Model
     public function defaultProduct(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'default_product_id');
+    }
+
+    public function inspections(): HasMany
+    {
+        return $this->hasMany(VisitInspection::class);
     }
 }

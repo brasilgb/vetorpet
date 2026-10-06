@@ -16,7 +16,7 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Assinatura', href: '#' },
 ];
 
-export default function Subscription({ tenant, plans, accountType, blockedReason, onTrial, inGracePeriod, graceDaysRemaining }: any) {
+export default function Subscription({ tenant, plans, accountType, blockedReason, onTrial, inGracePeriod, graceDaysRemaining, addonsByInterval = {} }: any) {
     const { auth } = usePage<SharedData>().props;
     const toast = useToast();
     const [selectedPeriods, setSelectedPeriods] = useState<Record<number, number>>(() =>
@@ -187,6 +187,8 @@ export default function Subscription({ tenant, plans, accountType, blockedReason
                 {plans.map((plan: any) => {
                     const selectedPeriod = plan.periods?.find((period: any) => period.id === selectedPeriods[plan.id]) ?? plan.periods?.[0];
                     const current = tenant.plan === plan.id && tenant.billing_period_id === selectedPeriod?.id && !blockedReason;
+                    const addons: any[] = (selectedPeriod && addonsByInterval[selectedPeriod.interval_count]) || [];
+                    const totalAmount = Number(selectedPeriod?.price ?? 0) + addons.reduce((sum, addon) => sum + Number(addon.amount), 0);
 
                     return (
                         <Card key={plan.id} className={current ? 'border-primary' : ''}>
@@ -199,11 +201,21 @@ export default function Subscription({ tenant, plans, accountType, blockedReason
                             <CardContent className="space-y-4">
                                 <div>
                                     <div className="text-3xl font-semibold">
-                                        {selectedPeriod && Number(selectedPeriod.price) > 0 ? `R$ ${maskMoney(selectedPeriod.price)}` : 'Sob consulta'}
+                                        {selectedPeriod && Number(selectedPeriod.price) > 0 ? `R$ ${maskMoney(totalAmount)}` : 'Sob consulta'}
                                     </div>
                                     <div className="text-sm text-muted-foreground">
                                         {selectedPeriod?.name ?? 'Período não configurado'} · {plan.trial_days} dias de teste
                                     </div>
+                                    {selectedPeriod && Number(selectedPeriod.price) > 0 && addons.length > 0 && (
+                                        <ul className="mt-2 space-y-0.5 text-sm text-muted-foreground">
+                                            <li>Plano: R$ {maskMoney(selectedPeriod.price)}</li>
+                                            {addons.map((addon: any) => (
+                                                <li key={addon.module_key}>
+                                                    + {addon.label}: R$ {maskMoney(addon.amount)}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-3 gap-2">
                                     {plan.periods?.filter((period: any) => [1, 6, 12].includes(Number(period.interval_count))).map((period: any) => (

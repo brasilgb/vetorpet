@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -30,6 +31,18 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
         ];
+    }
+
+    /**
+     * Administrador do sistema: sem tenant e com papel root explícito (sem o
+     * papel, usuário sem tenant não tem privilégio algum).
+     */
+    public function root(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'tenant_id' => null,
+            'roles' => User::ROLE_ROOT,
+        ]);
     }
 
     /**

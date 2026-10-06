@@ -84,6 +84,10 @@ class ControlPointController extends Controller
     {
         $this->authorizeManage();
 
+        if ($point->inspections()->exists()) {
+            return back()->with('error', 'Não é possível excluir um ponto de controle com inspeções registradas. Desative-o para que não apareça em novas visitas.');
+        }
+
         $this->auditLogger->log($request->user()->tenant, $request->user(), 'control_point.deleted', $point);
         $point->delete();
 

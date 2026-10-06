@@ -14,6 +14,14 @@ class TenantScope implements Scope
     public function apply(Builder $builder, Model $model): void
     {
         if (auth()->hasUser()) {
+            // Usuário sem tenant que não é root não enxerga registro algum:
+            // nunca cai no filtro "tenant_id IS NULL" do administrador.
+            if (auth()->user()->isOrphan()) {
+                $builder->whereRaw('1 = 0');
+
+                return;
+            }
+
             $builder->where('tenant_id', auth()->user()->tenant_id);
         } elseif (checkTenantId()) {
             $builder->where('tenant_id', session('tenant_id'));

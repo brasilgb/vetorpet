@@ -19,6 +19,10 @@ class AppAccessMiddleware
     public function handle(Request $request, Closure $next): Response
     {
         if (Auth::user()->tenant_id === null) {
+            // Só o root é encaminhado ao painel administrativo; usuário sem
+            // tenant e sem papel root não tem acesso a nada.
+            abort_unless(Auth::user()->isSuperAdmin(), 403);
+
             return Redirect::route('admin.dashboard');
         }
 

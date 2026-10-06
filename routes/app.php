@@ -27,6 +27,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductRegionPriceController;
 use App\Http\Controllers\RegionController;
 use App\Http\Controllers\SalesIntelligenceController;
+use App\Http\Controllers\SampleDataController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TenantFeedbackEntryController;
 use App\Http\Controllers\UserController;
@@ -49,6 +50,8 @@ Route::patch('/company', [CompanyController::class, 'update'])->name('company.up
 Route::get('/other-settings', [OtherSettingController::class, 'index'])->name('other-settings.index');
 Route::patch('/other-settings/admin-flex', [OtherSettingController::class, 'updateAdminFlex'])->name('other-settings.admin-flex.update');
 Route::get('/auxiliary-apps', [AuxiliaryAppController::class, 'index'])->name('auxiliary-apps.index');
+Route::post('/sample-data', [SampleDataController::class, 'store'])->name('sample-data.store');
+Route::delete('/sample-data', [SampleDataController::class, 'destroy'])->name('sample-data.destroy');
 Route::get('/feedback', [TenantFeedbackEntryController::class, 'index'])->name('feedback.index');
 Route::post('/feedback', [TenantFeedbackEntryController::class, 'store'])->name('feedback.store');
 Route::resource('/customers', CustomerController::class);

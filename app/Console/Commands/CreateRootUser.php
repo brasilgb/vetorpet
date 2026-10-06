@@ -15,7 +15,7 @@ class CreateRootUser extends Command
 
     public function handle(): int
     {
-        if (User::withoutGlobalScopes()->whereNull('tenant_id')->exists()) {
+        if (User::withoutGlobalScopes()->whereNull('tenant_id')->where('roles', User::ROLE_ROOT)->exists()) {
             $this->error('Ja existe um usuario root cadastrado.');
 
             return self::FAILURE;

@@ -1,3 +1,4 @@
+import SampleDataNotice from '@/components/sample-data-notice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +13,7 @@ import moment from 'moment';
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: route('app.dashboard') }];
 const executivePeriod = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date());
 
-export default function Dashboard({ summary, campaignSales, recentOrders, statusBreakdown }: any) {
+export default function Dashboard({ summary, campaignSales, recentOrders, statusBreakdown, sampleData = null }: any) {
     const { auth } = usePage<SharedData>().props;
     return <AppLayout breadcrumbs={breadcrumbs}>
         <Head title="Dashboard" />
@@ -25,6 +26,8 @@ export default function Dashboard({ summary, campaignSales, recentOrders, status
                     <Button asChild><Link href={route('app.reports.sales')}><ChartNoAxesCombined className="h-4 w-4" />Vendas</Link></Button>
                 </div>
             </div>
+
+            <SampleDataNotice state={sampleData} />
 
             {auth.subscriptionInGracePeriod && (
                 <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950 sm:flex-row sm:items-center sm:justify-between">

@@ -1,3 +1,183 @@
+# VP-DEMO-001 — Auditoria e planejamento do ambiente demonstrativo VetorPet
+
+**Data:** 05/10/2026. **Executor:** Codex. **Status:** auditoria estática concluída; implantação não autorizada e não iniciada.
+
+## 1. Escopo, evidências e limitações
+
+Executadas somente leituras do repositório autorizado e consulta à documentação pública. Única alteração desta tarefa: este relatório em `executed.md`, mecanismo já utilizado pelo projeto. O relatório anterior foi preservado ao final. Alterações preexistentes em controllers, models, telas e testes de assinatura/Controle de Pragas foram preservadas e consideradas como estado local, sem assumir que estejam publicadas.
+
+Não houve acesso a banco, dados pessoais, logs operacionais, credenciais, painel administrativo ou containers. Não foram executados Artisan, migrations, seeders, testes, deploy, reinicialização ou alterações de infraestrutura. Os testes Feature usam `RefreshDatabase` e MySQL em `phpunit.xml`; executá-los sem confirmar isolamento violaria o escopo.
+
+A consulta pública a https://vetorpet.com.br falhou na ferramenta de navegação; a avaliação da página inicial usa o código local. Não foi possível confirmar equivalência entre checkout e produção, migrations aplicadas, variáveis efetivas, versão do runtime, topologia do gateway, capacidade do servidor ou serviços compartilhados em operação. Ausência de implementação encontrada significa ausência no material inspecionado, não comprovação sobre sistemas externos.
+
+Fontes principais: `composer.json`, `composer.lock`, `bootstrap/app.php`, `routes/*.php`, `app/Models`, `app/Traits/Tenantable.php`, `app/Models/Scopes/TenantScope.php`, controllers, requests, serviços, `config/*.php`, migrations, factories/seeders, telas React, Dockerfile e testes existentes. Não foram consultados arquivos privados de configuração nem arquivos compactados de publicação.
+
+## 2. Diagnóstico da arquitetura
+
+- Laravel **12.69.2** no lockfile; requisito PHP **^8.3**, imagem Docker **PHP 8.4 FPM**. Inertia Laravel **2.0.27**, Sanctum **4.3.3**, Mercado Pago SDK **3.16.0**, Ziggy **2.6.4**. Frontend declara React 19, TypeScript 5.7, Vite 6, Tailwind 4 e `@react-pdf/renderer` 4.5.1; intervalos declarados não equivalem a versões efetivas de produção.
+- Monólito Laravel/Inertia/React com landing page, painel empresarial `/app`, administração `/admin` e API Sanctum `/api`. `bootstrap/app.php` registra web/API pelos argumentos e novamente em `then`; revisar duplicidade antes de adicionar proteção DEMO, validando a tabela efetiva de rotas em ambiente isolado.
+- Autenticação web: sessão, login/logout, recuperação de senha e rotas de verificação de e-mail. `User` não implementa `MustVerifyEmail` (import comentado), portanto não presumir verificação obrigatória. Listener de login grava `tenant_id` em sessão. Login web limita cinco tentativas por e-mail/IP, e impede acesso de técnico Pest ao painel. API emite tokens Sanctum, valida usuário ativo e assinatura; não há limiter explícito no login API inspecionado.
+- Tenancy: banco compartilhado, coluna `tenant_id` e escopo Eloquent global. **Sem usuário e sem tenant na sessão, `TenantScope` não aplica filtro algum.** A trait permite criação sem preencher tenant se faltar contexto. Várias migrations admitem `tenant_id` nulo. Não há isolamento físico por empresa demonstrado.
+- Usuário pertence a um tenant; empresa aponta para proprietário (`owner_user_id`). Papéis: root 99, owner 1 e seller 2. Entretanto, superadmin e middleware administrativo reconhecem **tenant nulo**, não exclusivamente papel root. DEMO jamais pode autenticar usuário com tenant nulo.
+- Representantes usam vínculo N:N com regiões (`region_user`); clientes possuem região e responsável. Visibilidade de cliente para vendedor é regional; pedidos usam `user_id`. Models e validações possuem proteções úteis, mas é necessário testar autorização por operação, não apenas escopo.
+- Autorização por middleware, métodos como `canManageTeam`/`canManageCatalog`, verificações nos controllers e regras `exists`/`unique` por tenant. Não foi encontrada uma camada geral de policies que garanta automaticamente todas as ações. Alguns FormRequests retornam `authorize() = true`, dependendo das demais camadas.
+- Planos e assinatura próprios: `Admin/Plan`, `Period`, `Feature`, `Tenant`, `Payment`, `PlanLimits`, `TenantModuleService`; tipos individual/equipe, trial de 14 dias, ciclos de cobrança e limites. `payments` registra **assinatura SaaS**, não recebimentos de vendas da distribuidora. Pix e consulta de status podem chamar Mercado Pago; webhook valida assinatura e altera pagamentos/licença.
+- Infraestrutura no checkout: build Node 22 + PHP-FPM e entrypoint que copia assets. Não foi encontrado Compose do ambiente neste diretório. Cache, sessões e filas possuem defaults em banco; configurações permitem Redis/SQS/S3 e serviços de e-mail. Configuração disponível não comprova utilização efetiva.
+- `routes/console.php` contém apenas comando `inspire`; não foi encontrado agendamento de restauração ou classe de job de negócio. Imports de `ShouldQueue` no listener não o tornam assíncrono. Filas e tabelas de jobs existem como infraestrutura genérica. Workers/scheduler externos permanecem não verificados.
+- PDF de pedidos é gerado no frontend por React PDF; existem impressão de pedido, relatório de despesas e exportação de dashboard. Não foi encontrada dependência PHP especializada em PDF. PDFs e exportações exigem proteção e identificação DEMO.
+
+## 3. Mapa dos módulos disponíveis
+
+| Recurso | Evidência e alcance para demonstração |
+|---|---|
+| Clientes B2B | `Customer`, `CustomerController`, requests e API; tipo de estabelecimento, região, responsável e dados comerciais |
+| Produtos | `Product`, CRUD web/API; marca, categoria, embalagem, imagem, preço, saldo e mínimo |
+| Preços e condições | `CommercialCondition`, `ProductRegionPrice`, `RegionalPriceResolver`; condições por cliente/região/tipo/global e campanhas; não presumir cadastro autônomo de tabelas de preços |
+| Representantes | `User` seller, regiões e gestão de equipe condicionada a plano/permissão |
+| Pedidos | `Order`, `OrderItem`, controllers web/API e `OrderUpdateService`; preços registrados no item, descontos, comissão, Flex, recorrência e cancelamento |
+| Estoque | Saldo `products.quantity`, ajuste transacional com lock e efeitos dos pedidos; **sem tabela de histórico de movimentações identificada** |
+| Despesas/financeiro comercial | `Expense`, comprovantes, quilometragem e relatórios; comissões e totais de pedidos; **sem contas a pagar/receber ou conciliação bancária identificadas** |
+| Visitas comerciais | `Visit`, agenda/check-in/check-out; distinto das visitas técnicas Pest |
+| Relatórios/indicadores | Dashboard, vendas, vendedores, despesas, comissões, inteligência comercial, exportação e PDFs |
+| Campanhas/catálogos | Campanhas e catálogo público por token; exposição pública intencional precisa de revisão na DEMO |
+| Fornecedores/compras | Nenhum model, migration ou CRUD identificado; não prometer nem gerar 20 registros inexistentes |
+| Fiscal/SMS | Nenhum emissor fiscal ou integração SMS identificado; manter bloqueio preventivo de saída |
+| VetorPest | Módulo técnico existente e acoplado; excluir integralmente da experiência DEMO |
+
+Não foi encontrado modo DEMO, restauração automática ou factory comercial reutilizável. Há apenas `UserFactory` e `DatabaseSeeder` básico criando usuário de teste. Exemplos sintéticos dos testes servem para compreender regras, não como massa comercial pronta.
+
+## 4. Alternativas de isolamento e recomendação
+
+| Critério | A: tenant na instalação atual | B: instância com banco separado | C: containers próprios e banco separado |
+|---|---|---|---|
+| Segurança/dados | Baixa para exposição pública; depende de todos os filtros | Boa se serviços e credenciais também separados | Melhor entre as três com rede, volumes e limites próprios |
+| Manutenção | Baixa inicialmente; proteções invasivas | Média; configuração independente | Média; imagens reproduzíveis e configuração segregada |
+| Custo | Menor custo direto; maior risco operacional | Baixo/médio conforme hospedagem | Baixo/médio em host dedicado à DEMO; recursos limitados |
+| Atualização | Acoplada à produção | Release independente | Mesma imagem versionada, release independente |
+| Restauração | Arriscada no banco produtivo | Segura com credenciais restritas | Segura com recursos descartáveis segregados |
+| Risco à produção | Alto: banco/processos/filas comuns | Residual se host/serviços compartilhados | Residual se mesmo host; menor com VM separada |
+| Escala | Compete diretamente com produção | Escala instância e banco | Replica app e amplia pool sob quotas |
+
+**Recomendar C, concretizando também B:** instalação DEMO em containers próprios, banco próprio, chave de aplicação, credenciais, armazenamento, sessões, cache e filas exclusivos. Preferir VM pequena separada da produção. Containers sozinhos não constituem isolamento completo: compartilham kernel/host, e não devem acessar socket Docker, rede, volumes ou segredos produtivos. A documentação oficial descreve essa fronteira em [Docker Engine security](https://docs.docker.com/engine/security/).
+
+Para custo inicial controlado, usar app compartilhado apenas entre visitantes DEMO e um pequeno pool de bancos sintéticos por sessão, com seleção de conexão imposta pelo backend. Um tenant por visitante no banco DEMO custa menos, mas mantém risco de interferência entre visitantes caso falhe o escopo. Portanto, preferir banco por sessão/pool para escrita; a escolha e tamanho do pool precisam ser homologados. Container de app por visitante é isolamento adicional possível, com custo e manutenção superiores.
+
+## 5. Massa fictícia e consistência
+
+Empresa: **Distribuidora Pet Brasil — DEMONSTRAÇÃO**. Base inicial proposta por sessão: 150 clientes, 300 produtos, 8 representantes e 1 usuário de demonstração restrito, 4–6 regiões, 200 pedidos com itens existentes, 100 despesas e visitas comerciais suficientes para indicadores. Não criar fornecedores nem 500 registros de movimentação: essas entidades não foram encontradas. Pode haver 500 **eventos simulados no processo de geração** para reconciliar saldo, documentados no manifesto técnico; não apresentá-los como funcionalidade de histórico disponível.
+
+Janela histórica: seis meses até a data de geração; na auditoria, referência 05/04/2026 a 05/10/2026. Snapshot precisa ser renovado com datas móveis para que os filtros de mês atual continuem mostrando atividade. Incluir clientes sem compra recente, produtos com saldo baixo e pedidos em diferentes estados, respeitando os estados e filtros reais dos controllers.
+
+Ordem futura: plano/ciclo compatíveis com limites → tenant explícito → usuários/regiões/pivôs → clientes → produtos → condições/campanhas/preços especiais → pedidos/itens → despesas/visitas → validação → snapshot. Usar IDs e `tenant_id` explícitos, inclusive no CLI; não depender de autenticação implícita. Não reaproveitar `DatabaseSeeder` básico sem corrigir o contexto, pois usuário sem tenant pode adquirir semântica administrativa.
+
+Gerador determinístico com semente/versionamento, manifestos de contagens e checksum; UUIDs, tokens e identidades de sessão regenerados na clonagem. Nomes curtos com “DEMO”, marcas inventadas, e-mails em domínio `.invalid`, endereços inventados e contatos sem encaminhamento. Documentos são exclusivamente fixtures sintéticas identificadas; números com dígito verificador não garantem inexistência de titular real. Validar compatibilidade com requests e jamais transmiti-los a serviços oficiais. Não copiar, anonimizar ou exportar dados produtivos.
+
+Reconciliar as regras reais, inclusive a convenção de sinal de `discount_amount`: preço especial regional ativo precede condições/campanha; preço de item é snapshot; subtotal é soma dos totais de itens; total = máximo entre zero e total ajustado menos desconto manual; comissão = total × percentual / 100 com arredondamento monetário. Flex depende do saldo disponível e deve reconciliar criação/edição/cancelamento. Saldo final = saldo inicial + ajustes positivos − ajustes negativos − saídas de pedidos + devoluções de cancelamento, segundo os efeitos reais de cada operação. Geração deve validar estoque não negativo e transições efetivas, não apenas inserir totais plausíveis. Pedidos já consomem estoque na criação; não descontar duas vezes ao atribuir estado final. Não inventar recebimentos ou pagamentos comerciais usando `payments` de assinatura.
+
+Critérios: nenhuma FK órfã ou cruzada entre tenants, contagens previstas, saldo/Flex reconciliados, centavos consistentes entre itens e pedidos, responsáveis válidos, datas dentro da janela e KPIs iguais aos cálculos independentes pelos mesmos filtros de status/data. Manter cenários de mínimo de pedido, comissão, preço regional e campanha que possam ser demonstrados sem quebrar validações.
+
+## 6. Acesso público e experiência comercial
+
+Botão **TESTAR VETORPET** em hero/header/CTA encaminha para `demo.vetorpet.com.br` (proposta). GET apresenta entrada; POST protegido por CSRF cria/reserva sessão DEMO. Nenhum cadastro ou senha administrativa pública. Usuário pertence ao banco/tenant daquela reserva e tem apenas permissões comerciais permitidas. Não bastam cookies diferentes sobre o mesmo usuário/base: visitantes ainda alterariam os mesmos registros.
+
+Proposta inicial: sessão com 30 minutos de inatividade e 60 minutos de duração absoluta, quota de ações e banco reservado exclusivamente até expiração. Cookie host-only com nome e chave próprios, HTTPS/Secure/HttpOnly/SameSite, regeneração ao entrar; identificador opaco sem seleção de banco/tenant fornecida pelo cliente. Vínculo servidor: sessão → reserva → conexão → tenant → usuário. Validar vínculo em toda requisição, download e tarefa. Sem login automático por querystring, tokens permanentes ou cookies válidos na produção. Expiração invalida sessão e tokens antes de liberar o recurso.
+
+Comparação: usuário compartilhado é barato, mas inadequado para escrita concorrente; sessão temporária sem base independente só resolve autenticação; tenant por visitante isola logicamente com maior necessidade de auditoria; banco por sessão resolve interferência no banco com maior consumo; base global em leitura é fallback seguro e econômico se não houver capacidade para sessões editáveis.
+
+Abuso: limites por IP e sessão, limite global de reservas, fila de entrada e mensagem de capacidade esgotada, limitação de mutações e exportações, desafio adicional somente sob abuso e teto de duração. Valores iniciais para homologação: 3 entradas/min/IP, 60 consultas/min/sessão, 20 mutações/min/sessão e 2 exportações/min/sessão; ajustar após carga, considerando redes NAT e acessibilidade.
+
+Boas-vindas: identificação “dados fictícios; alterações temporárias; sem efeitos externos”, tempo restante e roteiro: dashboard → cliente/região/representante → produto/preço especial → pedido com 2–3 itens → estoque → comissão/despesas/relatórios. Não prometer fornecedor, emissão fiscal, compras ou financeiro completo. PDFs e impressões devem ter marca d’água DEMONSTRAÇÃO, sem QR de cobrança utilizável.
+
+## 7. Proteções obrigatórias e riscos encontrados
+
+| Achado | Implicação / proteção requerida |
+|---|---|
+| Escopo sem contexto não filtra | Bloquear execução comercial sem contexto; conferir todas as consultas diretas e `withoutGlobalScopes`; banco DEMO separado é obrigatório |
+| Tenant nulo caracteriza administrador | Identidade DEMO sempre com tenant; bloquear `/admin`, gestão de usuários/roles, conta, licença, módulos e configurações sensíveis no backend |
+| Papéis owner/seller não formam perfil DEMO granular | Criar política explícita de ações permitidas; não promover visitante a owner para destravar catálogo |
+| Pix, status e webhook chamam gateway | Negar rotas DEMO e impedir chamadas também no serviço; gateway simulado local, sem credenciais nem QR cobravel |
+| Arquivos no disco público, caminhos como `products`/`company-logos` | Separar volume da produção e namespace por reserva; impedir acesso cruzado, paths arbitrários e execução de arquivos |
+| Uploads 2 MB para imagens, 5 MB para comprovantes | Limitar também quantidade, bytes acumulados, corpo HTTP, dimensões e conteúdo; começar DEMO com upload desativado ou fixtures locais |
+| Login API e rotas públicas sem limiter explícito identificado | Verificar gateway e definir throttling específico; desabilitar registro, recuperação e emissão livre de tokens na DEMO |
+| Listagens/relatórios usam `get()`, API `/alldata` agrega dados | Quotas de registros, intervalo máximo de datas, paginação, timeout e limites de exportação |
+| Integrações no navegador | Há ViaCEP nos formulários e links WhatsApp em produtos/landing; substituir consulta por fixture e compartilhar por simulação, usando CSP própria da DEMO |
+| Defaults de fila/cache/sessão e serviços configuráveis | Nenhuma conexão/namespace/worker compartilhado; jobs exigem contexto explícito e expiração |
+| Migrations alteram dados/configurações e incluem SQL MySQL | Não executar em produção; snapshot ligado à versão do schema; homologar em engine compatível |
+| Docker copia diretório inteiro com exclusões mínimas | Revisar contexto e imagem para excluir segredos, arquivos históricos, dumps, ZIPs e APKs fora do escopo |
+
+E-mail externo: bloquear recuperação/convites e usar sink local; não confiar apenas em mailer configurado. WhatsApp/SMS/fiscal/pagamentos/webhooks/APIs sensíveis: negar no backend e por política de saída de rede, sem credenciais externas; funcionalidades inexistentes continuam sem integração. CSP e revisão de links cobrem o navegador, que não é protegido pelo bloqueio de rede do servidor. Comunicação comercial do site principal é separada da simulação operacional DEMO.
+
+Mass assignment: há `$fillable`, porém campos sensíveis como `tenant_id`, `roles` e `status` aparecem em `User`; revisar payloads validados e autorização. Tenant/banco/usuário/permissões nunca vêm do payload visitante. Proteger CSRF para web e revisar CORS/Sanctum; não isentar entrada DEMO. Logs sem documentos, tokens ou corpos integrais, com rotação e retenção técnica proposta de 7–14 dias. Não exibir debug ou detalhes de infraestrutura.
+
+## 8. Dependências do VetorPest e separação futura
+
+Namespace `App/Models/PestControl`, controllers web/API, serviços de permissão/provisionamento/geolocalização/visitas/auditoria e requests próprios. Tabelas exclusivas: `pest_control_lookups`, `pest_control_species`, `pest_control_products`, `pest_control_establishments`, `pest_control_control_points`, `user_pest_control_permissions`, `pest_control_audit_logs`, `pest_control_visits`, `pest_control_visit_inspections`, `pest_control_inspection_species`, `pest_control_visit_media`, `pest_control_visit_signatures` e `pest_control_technicians` (migrations correspondentes).
+
+Compartilha `User`, `Tenant`, autenticação/Sanctum, trait/escopo, armazenamento, módulo/assinatura/Pix e frontend. `AppServiceProvider` registra provisionador; `User` contém vínculo e identificação de técnico; API e middleware Inertia expõem metadados de módulos/permissões; sidebar e assinatura usam configuração do adicional. Owner tem permissão Pest implícita, ainda dependendo de módulo ativo. Não basta apagar concessões.
+
+Web em `/app/pest-control`, API em `/api/pest-control/v1`; há menu condicionado ao módulo. `vp-app` é aplicativo técnico Expo com agenda offline/SQLite, sincronização, check-in geográfico, fotos e assinatura. `AuxiliaryAppController` oferece APK técnico condicionado ao módulo, mas URLs estáticas em `/apk` precisam de bloqueio independente do menu.
+
+Plano DEMO: não registrar rotas Pest, não provisionar módulo e negar ativação/assinatura do adicional; remover menu, ofertas, metadados e links técnicos; não distribuir APKs técnicos nem incluir seeds, mídias e permissões Pest. Bloquear acessos diretos web/API/static com 404. Evitar publicar nomes de rotas via Ziggy ou chunks Pest no artefato DEMO quando exigida ocultação completa. Não excluir componentes do repositório nesta etapa.
+
+Separação futura: extrair Pest para pacote/contexto de domínio com providers, rotas, migrations, permissões e assets próprios; manter interfaces de tenancy, identidade, assinatura e arquivos no núcleo. Depois avaliar produto/instância separados, com mapa de FKs e migração por tenant, preservação de UUIDs, evidências e auditoria. Nenhuma exclusão de tabela enquanto consumidores móveis e relações não forem migrados e homologados.
+
+## 9. Restauração e salvaguardas
+
+Recomendar **gerador determinístico + snapshot sintético versionado + pool de bases descartáveis**. Seeder cria a origem sob controle; snapshot reduz latência de entrada. Laravel suporta seeders e ordem de geração, mas desativa mass assignment durante seeding: a proteção deve existir no gerador e na infraestrutura, conforme [documentação de seeding](https://laravel.com/framework/docs/12.x/seeding). Não usar `migrate:fresh` genérico como rotina pública.
+
+Ao expirar: marcar reserva indisponível → revogar sessões/tokens → interromper/descartar jobs daquela reserva → aguardar requisições ativas → recriar somente recurso DEMO previamente registrado → restaurar snapshot e arquivos sintéticos → limpar cache por namespace → validar contagens/checksum → liberar reserva. Sem restauração global enquanto visitantes operam. Agendamento periódico mantém o pool e remove sessões/uploads expirados; periodicidade inicial de cinco minutos para expiração e renovação diária da origem, a homologar. Reiniciar container não restaura sozinho um volume persistente.
+
+Salvaguardas cumulativas: rede incapaz de alcançar produção; nenhum segredo ou volume produtivo; conta de banco limitada a bases registradas DEMO; app sem privilégios DDL e restaurador separado; identidade imutável do ambiente verificada por manifesto externo confiável e sentinela no destino; allowlist de host/base/volume, caminho canônico sem symlinks para fora; recusa em caso de divergência, ausência de marcador ou `APP_ENV` inesperado. Prefixo `demo_` e flag de ambiente sozinhos não bastam. Não aceitar destino da requisição nem credenciais de produção como fallback.
+
+Restaurador deve funcionar sem Docker socket privilegiado: acesso a esse socket pode invalidar a segregação. Locks impedem dois resets da mesma reserva. Falhas deixam base em quarentena, sem disponibilizar conteúdo parcial; métricas, prazo máximo e alarme local. Logs ficam fora da área descartável. Workers são processos duradouros e precisam de release/configuração próprios, conforme [documentação de filas](https://laravel.com/framework/docs/12.x/queues).
+
+## 10. Segurança, desempenho e homologação necessária
+
+Capacidade **não medida**. Hipótese inicial: 10 sessões editáveis simultâneas, testes a 1/5/10/20 visitantes; excedente recebe espera ou leitura. Se cada sessão clonar a massa inteira, 10 bases contêm cerca de 1.500 clientes, 3.000 produtos e 2.000 pedidos, além de itens; medir tamanho físico, arquivos, conexões e custo de restore. Proposta de laboratório: VM 2 vCPU/4 GB RAM e 20–40 GB de disco, sem garantia de capacidade. Impor limites de CPU/RAM/PIDs/conexões e evitar que testes de carga usem produção.
+
+Testes futuros obrigatórios: IDOR entre tenants/reservas em web/API/relações/exportações/arquivos; contexto ausente; adulteração de tenant/role/conexão; cadastro/reset/login alternativo; autorização de seller/owner/demo; CSRF/fixação/expiração; token revogado; acesso Pest direto e APK; chamadas externas pelo serviço, jobs e navegador; manipulação de preços/descontos/Flex; estoque concorrente, edição/cancelamento; reserva/expiração/reset simultâneos; falhas no meio do restore; uploads e traversal; limites de datas/volume; rate limits e carga sustentada.
+
+Testar proteção destrutiva em laboratório com destinos-canário representando produção: cada erro de host/base/credencial/volume/manifesto deve falhar antes de qualquer escrita. Comprovar bloqueio de rede e ausência de credenciais produtivas. Usar testes existentes (`TenantIsolationTest`, `ProductStockAdjustmentTest`, `ProductRegionPriceTest`, testes de catálogo, pedidos, relatórios e módulos) somente em banco descartável explicitamente validado; esta auditoria não afirma que passaram.
+
+Aceitação proposta: zero vazamentos/interferências, zero saída externa operacional, matemática validada, reset idempotente e isolado; sob 10 visitantes, p95 de navegação até 2 s e entrada com base pronta até 5 s, erros abaixo de 1%, sem OOM e sem degradação produtiva. Metas são critérios de homologação, não resultados obtidos.
+
+## 11. Custos, esforço e plano faseado
+
+Estimativa de engenharia, sem cotação nem compromisso: **21–35 dias úteis de uma pessoa**, mais contingência de 20–30% e tempo de revisão/homologação. Infra depende do provedor e consumo: solicitar cotação de VM/banco/disco/backup/tráfego e TLS/DNS; não apresentar preço de serviço não verificado. Modelo de custo mensal = app + banco/pool + armazenamento/logs + tráfego + observabilidade; manutenção estimada de 2–4 h/semana no início. Host produtivo compartilhado reduz custo direto, mas exige capacidade disponível e mantém risco de recursos/kernel. Pools limitados evitam custo crescente por visitante.
+
+Todos os arquivos novos abaixo são **propostos**, não criados. Infra será definida em diretório DEMO próprio dentro do projeto/checkout autorizado, após aprovação.
+
+| Fase | Objetivo e alterações / arquivos previstos | Dependências e riscos | Testes e aceitação | Rollback | Esforço |
+|---|---|---|---|---|---|
+| DEMO-01 | Isolar VM/rede/app/banco/volumes; `infra/demo/compose.yml`, configuração de proxy, `Dockerfile`, `.dockerignore`, exemplo de ambiente e `config/demo.php` | Escolha de host/DNS; risco de montagem, conexão ou imagem contaminada | Conexões produtivas inacessíveis, volumes/segredos próprios, quotas e imagem auditada | Retirar endpoint DEMO e parar apenas recursos identificados DEMO | 2–4 dias |
+| DEMO-02 | Gerador e validação da massa; `database/seeders/DemoSeeder.php`, factories comerciais, `app/Services/Demo/*`, manifesto/snapshot | DEMO-01 e regras/schema confirmados; risco de matemática/FKs e contexto ausente | Determinismo, contagens, FK, saldo/Flex e KPIs reconciliados | Descartar origem inválida e manter último snapshot compatível | 3–5 dias |
+| DEMO-03 | Reserva independente, conexão imposta, usuário restrito e expiração; `routes/demo.php`, `bootstrap/app.php`, controllers/middleware/serviços DEMO, `config/session.php`, migration de reservas | DEMO-01/02; corrida de reserva, conexão residual em processos persistentes | Dois visitantes não compartilham dados; expiração/token/cookie e conexão testados | Desabilitar entrada e revogar somente reservas DEMO | 4–6 dias |
+| DEMO-04 | Allowlist de ações, negação administrativa/Pest/cobrança e adapters locais; `routes/{app,api,admin}.php`, middleware DEMO, serviços de pagamento/mail, `config/services.php`, provider, Inertia/sidebar/assinatura/APKs | DEMO-03; owner implícito, rotas alternativas, saída pelo navegador | 403/404 por acesso direto, zero chamadas reais, payload sem permissão/módulo Pest | Manter DEMO fechada e reverter imagem; nunca reabrir versão sem bloqueios | 3–5 dias |
+| DEMO-05 | Restaurador, TTL, locks, limpeza por namespace e retenção; comandos/jobs/services DEMO, `routes/console.php`, volumes/config/logging | DEMO-01/02/03/04; reset de base ativa ou destino errado | Canários, restore concorrente/idempotente, quarentena, nenhuma escrita fora de recurso DEMO | Desativar restauração/entrada, preservar logs e último snapshot íntegro | 3–5 dias |
+| DEMO-06 | Botão, boas-vindas, roteiro, avisos e PDFs marcados; `resources/js/pages/site/components/{hero-section,header,cta-section}.tsx`, tela DEMO, templates PDF | DEMO-03/04/05; link/cookie incorreto, publicidade de função ausente | Fluxo sem cadastro, acessível/mobile, marca DEMO, produção sem sessão DEMO | Remover/desativar botão e voltar assets anteriores | 1–2 dias |
+| DEMO-07 | Segurança, concorrência e homologação; `tests/Feature/Demo/*`, suites atuais, cenário de carga isolado, checklist e evidências | Fases 01–06; efeitos destrutivos se teste apontar destino incorreto | Todos os critérios da seção 10 e bloqueios negativos aprovados | Bloquear promoção e corrigir ambiente DEMO | 4–6 dias |
+| DEMO-08 | Publicação controlada, observação e runbook; configuração de gateway/DNS DEMO, pipeline independente, runbook | DEMO-07 aprovado e autorização expressa para implantação; risco de rota/versão/incidente | Primeiro acesso limitado, métricas/reset/saída verificados e aprovação comercial | Desativar botão/ingresso DEMO, revogar sessões, voltar release e snapshot compatíveis | 1–2 dias |
+
+Fases são entregas revisáveis e reversíveis; suas dependências impedem publicar etapa incompleta. Alteração de schema requer estratégia de snapshot compatível, não restauração cega sobre versão diferente. Nenhum rollback pode usar banco, volumes ou migrations de produção.
+
+## 12. Pendências e decisões necessárias
+
+1. Aprovar C com VM separada e pool de bancos por sessão, ou optar por leitura enquanto o isolamento editável não estiver homologado.
+2. Confirmar topologia autorizada, configuração efetiva, engine/versão do banco, gateway/limites, workers, scheduler, armazenamento e serviços compartilhados; sem leitura de dados pessoais.
+3. Confirmar release produtivo versus alterações locais e rota da landing realmente publicada; validar o cadastro duplicado de rotas em laboratório.
+4. Definir orçamento/cotação, limite de visitantes, TTL, retenção e responsável pela operação; ajustar dimensionamento após medir carga.
+5. Aprovar mapa de permissões comerciais DEMO e tratamento visual de documentos e funções de cobrança/fiscal inexistentes.
+6. Aceitar explicitamente que fornecedores, histórico de movimentações e financeiro completo não fazem parte do produto identificado; não desenvolver tais módulos para compor a massa.
+7. Definir plano/ciclo/limites sintéticos que aceitem 8 representantes e o volume proposto sem liberar cobrança real.
+8. Aprovar roteiro comercial e homologação antes de disponibilizar botão público.
+9. Autorizar expressamente a implementação e, posteriormente, a implantação controlada. **A execução desta solicitação encerra-se no relatório.**
+
+---
+
+# Histórico preservado — relatório anterior
+
+O conteúdo abaixo antecede VP-DEMO-001 e não representa ações executadas nesta auditoria.
+
 # Preço Regional com Exceção por Produto — Execução
 
 ## 1. Descoberta

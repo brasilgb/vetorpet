@@ -51,6 +51,16 @@ class LoginRequest extends FormRequest
 
         RateLimiter::clear($this->throttleKey());
 
+        // Usuário sem empresa e sem papel root: cadastro inconsistente, que
+        // não pode entrar (e nunca é tratado como administrador).
+        if (Auth::user()?->isOrphan()) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'Este usuário não está vinculado a nenhuma empresa. Procure o suporte.',
+            ]);
+        }
+
         // Técnico/operador do Controle de Pragas: cadastro válido, mas o
         // painel web é exclusivo do administrador. Esse usuário só acessa
         // pelo aplicativo (ver App\Models\PestControl\Technician).

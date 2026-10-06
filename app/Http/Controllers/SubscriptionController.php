@@ -6,6 +6,7 @@ use App\Models\Admin\Plan;
 use App\Models\Payment;
 use App\Models\Tenant;
 use App\Services\MercadoPagoService;
+use App\Services\TenantModuleService;
 use App\Support\PlanLimits;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,10 @@ use Inertia\Response;
 
 class SubscriptionController extends Controller
 {
-    public function __construct(private readonly MercadoPagoService $mercadoPagoService) {}
+    public function __construct(
+        private readonly MercadoPagoService $mercadoPagoService,
+        private readonly TenantModuleService $tenantModules,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -57,6 +61,11 @@ class SubscriptionController extends Controller
             'onTrial' => $tenant->isOnTrial(),
             'inGracePeriod' => $inGracePeriod,
             'graceDaysRemaining' => $planLimits->graceDaysRemaining(),
+            // Adicionais ativos por ciclo (1, 6 e 12 meses), para o card do plano
+            // exibir o mesmo total que será cobrado no Pix.
+            'addonsByInterval' => collect([1, 6, 12])
+                ->mapWithKeys(fn (int $months) => [$months => $this->tenantModules->activeAddonsFor($tenant, $months)])
+                ->all(),
         ]);
     }
 

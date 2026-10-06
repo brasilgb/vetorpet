@@ -5,6 +5,7 @@ import { FormEventHandler, useState } from 'react';
 import InputError from '@/components/input-error';
 import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AuthLayout from '@/layouts/auth-layout';
@@ -20,48 +21,84 @@ type RegisterForm = {
     email: string;
     password: string;
     password_confirmation: string;
+    sample_data: boolean;
 };
+
+const businessProfiles = [
+    {
+        value: 'team',
+        name: 'Distribuidora pet',
+        description: 'Gestão da equipe de representantes, regiões, pedidos e metas.',
+    },
+    {
+        value: 'individual',
+        name: 'Veterinário ou representante autônomo',
+        description: 'Para quem atende e vende sozinho e administra a própria carteira.',
+    },
+] as const;
 
 export default function Register() {
     const [showPassword, setShowPassword] = useState(false);
+    const [whatsappSameAsPhone, setWhatsappSameAsPhone] = useState(true);
 
-    const { data, setData, post, processing, errors, reset } = useForm<Required<RegisterForm>>({
+    const { data, setData, post, processing, errors, reset, transform } = useForm<Required<RegisterForm>>({
         cnpj: '',
         company: '',
-        account_type: 'individual',
+        account_type: 'team',
         phone: '',
         whatsapp: '',
         name: '',
         email: '',
         password: '',
         password_confirmation: '',
+        sample_data: true,
     });
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
+        transform((current) => ({ ...current, whatsapp: whatsappSameAsPhone ? current.phone : current.whatsapp }));
         post(route('register'), {
             onFinish: () => reset('password', 'password_confirmation'),
         });
     };
 
     return (
-        <AuthLayout width="w-full max-w-4xl" title="Criar uma conta" description="Digite seus dados abaixo para criar sua conta">
+        <AuthLayout width="w-full max-w-4xl" title="Teste grátis por 14 dias" description="Crie sua conta em poucos passos. Não pedimos cartão de crédito.">
             <Head title="Criar uma conta" />
             <div className="max-h-[72svh] min-w-0 overflow-y-auto sm:max-h-[76svh]">
                 <form className="flex flex-col gap-6" onSubmit={submit}>
+                    <div className="space-y-3">
+                        <Label>Qual é o seu negócio?</Label>
+                        <div className="grid gap-3 md:grid-cols-2">
+                            {businessProfiles.map((profile) => (
+                                <button
+                                    key={profile.value}
+                                    type="button"
+                                    disabled={processing}
+                                    aria-pressed={data.account_type === profile.value}
+                                    onClick={() => setData('account_type', profile.value)}
+                                    className={`rounded-lg border p-4 text-left transition-colors ${data.account_type === profile.value ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/50'}`}
+                                >
+                                    <div className="font-semibold">{profile.name}</div>
+                                    <div className="mt-1 text-sm text-muted-foreground">{profile.description}</div>
+                                </button>
+                            ))}
+                        </div>
+                        <InputError message={errors.account_type} />
+                    </div>
+
                     <div className="grid gap-6 md:grid-cols-3">
                         <div className="grid gap-2 md:col-span-2">
-                            <Label htmlFor="company">Razão social</Label>
+                            <Label htmlFor="company">Empresa ou nome profissional</Label>
                             <Input
                                 id="company"
                                 type="text"
-                                autoFocus
                                 tabIndex={1}
                                 autoComplete="company"
                                 value={data.company}
                                 onChange={(e) => setData('company', e.target.value)}
                                 disabled={processing}
-                                placeholder="Razão social"
+                                placeholder="Razão social ou nome da clínica"
                             />
                             <InputError message={errors.company} className="mt-2" />
                         </div>
@@ -80,36 +117,6 @@ export default function Register() {
                             />
                             <InputError message={errors.cnpj} className="mt-2" />
                         </div>
-                    </div>
-
-                    <div className="space-y-3">
-                        <Label>Tipo de conta</Label>
-                        <div className="grid gap-3 md:grid-cols-2">
-                            {([
-                                {
-                                    value: 'individual',
-                                    name: 'Vendedor individual',
-                                    description: 'Para quem trabalha sozinho e administra a própria carteira.',
-                                },
-                                {
-                                    value: 'team',
-                                    name: 'Equipe',
-                                    description: 'Para empresas com múltiplos vendedores e gestão de equipe.',
-                                },
-                            ] as const).map((accountType) => (
-                                <button
-                                    key={accountType.value}
-                                    type="button"
-                                    disabled={processing}
-                                    onClick={() => setData('account_type', accountType.value)}
-                                    className={`rounded-lg border p-4 text-left transition-colors ${data.account_type === accountType.value ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/50'}`}
-                                >
-                                    <div className="font-semibold">{accountType.name}</div>
-                                    <div className="mt-1 text-sm text-muted-foreground">{accountType.description}</div>
-                                </button>
-                            ))}
-                        </div>
-                        <InputError message={errors.account_type} />
                     </div>
 
                     <div className="grid gap-6 md:grid-cols-4">
@@ -159,6 +166,19 @@ export default function Register() {
                             <InputError message={errors.phone} />
                         </div>
 
+                        <div className="flex items-center gap-2 md:col-span-2 md:self-end md:pb-2">
+                            <Checkbox
+                                id="whatsapp_same_as_phone"
+                                checked={whatsappSameAsPhone}
+                                onCheckedChange={(checked) => setWhatsappSameAsPhone(checked === true)}
+                                disabled={processing}
+                            />
+                            <Label htmlFor="whatsapp_same_as_phone" className="font-normal">
+                                O telefone também é WhatsApp
+                            </Label>
+                        </div>
+
+                        {!whatsappSameAsPhone && (
                         <div className="grid gap-2 md:col-span-2">
                             <Label htmlFor="whatsapp">WhatsApp *</Label>
                             <Input
@@ -174,6 +194,8 @@ export default function Register() {
                             />
                             <InputError message={errors.whatsapp} />
                         </div>
+                        )}
+                        {whatsappSameAsPhone && errors.whatsapp && <InputError message={errors.whatsapp} className="md:col-span-4" />}
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-end">
@@ -212,9 +234,24 @@ export default function Register() {
                         </div>
                     </div>
 
+                    <div className="flex items-start gap-3 rounded-lg border p-4">
+                        <Checkbox
+                            id="sample_data"
+                            checked={data.sample_data}
+                            onCheckedChange={(checked) => setData('sample_data', checked === true)}
+                            disabled={processing}
+                        />
+                        <div className="grid gap-1">
+                            <Label htmlFor="sample_data">Começar com dados de exemplo</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Clientes, produtos, pedidos e visitas fictícios só na sua conta, para explorar o sistema. Você remove tudo com um clique.
+                            </p>
+                        </div>
+                    </div>
+
                     <Button type="submit" className="mt-2 w-full" tabIndex={11} disabled={processing}>
                         {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                        {processing ? 'Cadastrando...' : 'Cadastrar'}
+                        {processing ? 'Criando sua conta...' : 'Começar teste grátis'}
                     </Button>
 
                     <div className="text-center text-sm text-muted-foreground">
