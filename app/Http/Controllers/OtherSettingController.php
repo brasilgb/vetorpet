@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TenantModuleService;
 use App\Support\PlanLimits;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -10,6 +11,8 @@ use Inertia\Response;
 
 class OtherSettingController extends Controller
 {
+    public function __construct(private readonly TenantModuleService $tenantModules) {}
+
     public function index(Request $request): Response
     {
         $tenant = $request->user()->tenant()->with(['planModel', 'billingPeriod'])->firstOrFail();
@@ -19,6 +22,9 @@ class OtherSettingController extends Controller
             'tenant' => $tenant,
             'blockedReason' => $planLimits->subscriptionBlockedReason(),
             'onTrial' => $tenant->isOnTrial(),
+            'currentAddons' => $tenant->billingPeriod
+                ? $this->tenantModules->activeAddonsFor($tenant, $tenant->billingPeriod->interval_count)
+                : [],
         ]);
     }
 

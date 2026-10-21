@@ -66,6 +66,10 @@ class SubscriptionController extends Controller
             'addonsByInterval' => collect([1, 6, 12])
                 ->mapWithKeys(fn (int $months) => [$months => $this->tenantModules->activeAddonsFor($tenant, $months)])
                 ->all(),
+            // Adicionais do ciclo contratado, para o card "Plano atual" mostrar o total cobrado.
+            'currentAddons' => $tenant->billingPeriod
+                ? $this->tenantModules->activeAddonsFor($tenant, $tenant->billingPeriod->interval_count)
+                : [],
         ]);
     }
 

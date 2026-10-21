@@ -159,3 +159,23 @@ test('subscription page sends the active addons per billing cycle so the plan ca
             ->where('addonsByInterval.6.0.amount', 162)
             ->where('addonsByInterval.12.0.amount', 288));
 });
+
+test('current plan cards include the active addon of the contracted cycle', function () {
+    [$plan, $period, $tenant, $user, $root] = billingTestAccount('5');
+    $tenant->update(['billing_period_id' => $period->id]);
+    app(TenantModuleService::class)->activate($tenant, TenantModule::KEY_PEST_CONTROL, $root);
+
+    $this->actingAs($user)
+        ->get(route('app.subscription.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('currentAddons.0.module_key', 'pest_control')
+            ->where('currentAddons.0.amount', 30));
+
+    $this->actingAs($user)
+        ->get(route('app.other-settings.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('app/other-settings/index')
+            ->where('currentAddons.0.amount', 30));
+});

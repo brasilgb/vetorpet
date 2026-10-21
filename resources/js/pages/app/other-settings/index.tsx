@@ -18,7 +18,11 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Outras configurações', href: route('app.other-settings.index') },
 ];
 
-export default function OtherSettings({ tenant, blockedReason, onTrial }: any) {
+type Addon = { module_key: string; label: string; amount: number };
+
+const sumAddons = (addons: Addon[]) => addons.reduce((sum, addon) => sum + Number(addon.amount), 0);
+
+export default function OtherSettings({ tenant, blockedReason, onTrial, currentAddons = [] }: any) {
     const { auth } = usePage<SharedData>().props;
     const plan = tenant.plan_model;
     const period = tenant.billing_period;
@@ -82,7 +86,16 @@ export default function OtherSettings({ tenant, blockedReason, onTrial }: any) {
                             <div>
                                 <div className="text-xs text-muted-foreground">Ciclo</div>
                                 <div className="font-medium">{period?.name ?? (onTrial ? 'Período de teste' : 'Não definido')}</div>
-                                {period && <div className="text-sm text-muted-foreground">R$ {maskMoney(period.price)}</div>}
+                                {period && (
+                                    <div className="text-sm text-muted-foreground">
+                                        R$ {maskMoney(Number(period.price) + sumAddons(currentAddons))}
+                                        {(currentAddons as Addon[]).map((addon) => (
+                                            <div key={addon.module_key} className="text-xs">
+                                                inclui {addon.label}: R$ {maskMoney(addon.amount)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <div className="text-xs text-muted-foreground">Situação</div>

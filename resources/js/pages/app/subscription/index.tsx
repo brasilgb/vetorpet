@@ -16,7 +16,11 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Assinatura', href: '#' },
 ];
 
-export default function Subscription({ tenant, plans, accountType, blockedReason, onTrial, inGracePeriod, graceDaysRemaining, addonsByInterval = {} }: any) {
+type Addon = { module_key: string; label: string; amount: number };
+
+const sumAddons = (addons: Addon[]) => addons.reduce((sum, addon) => sum + Number(addon.amount), 0);
+
+export default function Subscription({ tenant, plans, accountType, blockedReason, onTrial, inGracePeriod, graceDaysRemaining, addonsByInterval = {}, currentAddons = [] }: any) {
     const { auth } = usePage<SharedData>().props;
     const toast = useToast();
     const [selectedPeriods, setSelectedPeriods] = useState<Record<number, number>>(() =>
@@ -152,7 +156,17 @@ export default function Subscription({ tenant, plans, accountType, blockedReason
                             <div className="text-2xl font-semibold">{tenant.plan_model?.name ?? 'Sem plano'}</div>
                             {tenant.billing_period && (
                                 <div className="text-sm text-muted-foreground">
-                                    {tenant.billing_period.name} · R$ {maskMoney(tenant.billing_period.price)}
+                                    {tenant.billing_period.name} · R$ {maskMoney(Number(tenant.billing_period.price) + sumAddons(currentAddons))}
+                                    {currentAddons.length > 0 && (
+                                        <ul className="mt-1 space-y-0.5">
+                                            <li>Plano: R$ {maskMoney(tenant.billing_period.price)}</li>
+                                            {(currentAddons as Addon[]).map((addon) => (
+                                                <li key={addon.module_key}>
+                                                    + {addon.label}: R$ {maskMoney(addon.amount)}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                 </div>
                             )}
                         </div>
