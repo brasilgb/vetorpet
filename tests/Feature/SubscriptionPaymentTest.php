@@ -287,3 +287,54 @@ test('subscription index page automatically syncs pending payments with mercado 
     expect($tenant->fresh()->payment)->toBeTrue();
 });
 
+test('signed webhook accepts the pix total that includes active addons', function () {
+    [$plan, $period, $tenant] = paymentAccount();
+    $secret = 'webhook-secret';
+    config()->set('services.mercadopago.webhook_secret', $secret);
+
+    Payment::create([
+        'tenant_id' => $tenant->id,
+        'plan_id' => $plan->id,
+        'period_id' => $period->id,
+        'payment_id' => 'mp-addon-1',
+        'amount' => 89.90,
+        'status' => 'pending',
+        'idempotency_key' => (string) Str::uuid(),
+    ]);
+    $gatewayPayment = (object) [
+        'id' => 'mp-addon-1',
+        'transaction_amount' => 89.90,
+        'status' => 'approved',
+        'date_of_expiration' => null,
+        'external_reference' => json_encode([
+            'tenant_id' => $tenant->id,
+            'plan_id' => $plan->id,
+            'period_id' => $period->id,
+        ]),
+    ];
+
+    $service = Mockery::mock(MercadoPagoService::class)->makePartial();
+    $service->shouldReceive('getPayment')->once()->with('mp-addon-1')->andReturn($gatewayPayment);
+    $this->app->instance(MercadoPagoService::class, $service);
+
+    $this->postJson(route('webhooks.mercadopago').'?data.id=mp-addon-1', ['type' => 'payment', 'data' => ['id' => 'mp-addon-1']], signedWebhookHeaders('mp-addon-1', $secret))
+        ->assertOk()->assertJson(['status' => 'success']);
+
+    expect($tenant->fresh()->payment)->toBeTrue();
+});
+
+test('webhook accepts signature timestamp in seconds and rejects stale ones', function () {
+    config()->set('services.mercadopago.webhook_secret', 'webhook-secret');
+    $signed = function (int $timestamp): array {
+        $requestId = (string) Str::uuid();
+        $manifest = 'id:mp-ts;request-id:'.$requestId.';ts:'.$timestamp.';';
+
+        return ['x-request-id' => $requestId, 'x-signature' => 'ts='.$timestamp.',v1='.hash_hmac('sha256', $manifest, 'webhook-secret')];
+    };
+    $url = route('webhooks.mercadopago').'?data.id=mp-ts';
+
+    $this->postJson($url, ['type' => 'merchant_order'], $signed(time()))
+        ->assertOk()->assertJson(['status' => 'ignored']);
+    $this->postJson($url, ['type' => 'merchant_order'], $signed((time() - 600) * 1000))
+        ->assertUnauthorized();
+});

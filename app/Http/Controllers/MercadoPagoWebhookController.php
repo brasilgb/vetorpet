@@ -7,17 +7,21 @@ use App\Models\Admin\Plan;
 use App\Models\Payment;
 use App\Models\Tenant;
 use App\Services\MercadoPagoService;
+use App\Services\TenantModuleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use MercadoPago\Exceptions\InvalidWebhookSignatureException;
+use MercadoPago\Exceptions\SignatureFailureReason;
 use MercadoPago\Webhook\WebhookSignatureValidator;
 
 class MercadoPagoWebhookController extends Controller
 {
-    public function __construct(private readonly MercadoPagoService $mercadoPagoService) {}
+    public function __construct(
+        private readonly MercadoPagoService $mercadoPagoService,
+        private readonly TenantModuleService $tenantModules,
+    ) {}
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -44,12 +48,22 @@ class MercadoPagoWebhookController extends Controller
                 $request->header('x-request-id'),
                 $dataId,
                 $secret,
-                300,
             );
+
+            // O SDK assume "ts" em segundos, mas o Mercado Pago envia milissegundos;
+            // por isso a tolerância de 5 minutos é verificada aqui.
+            if (! $this->timestampWithinTolerance((string) $request->header('x-signature'), 300)) {
+                throw new InvalidWebhookSignatureException(
+                    SignatureFailureReason::TIMESTAMP_OUT_OF_TOLERANCE,
+                    $request->header('x-request-id'),
+                );
+            }
         } catch (InvalidWebhookSignatureException|\InvalidArgumentException $exception) {
             Log::warning('Assinatura inválida no webhook Mercado Pago.', [
                 'request_id' => $request->header('x-request-id'),
                 'data_id' => $dataId,
+                'reason' => $exception instanceof InvalidWebhookSignatureException ? $exception->getReason() : $exception->getMessage(),
+                'timestamp' => $exception instanceof InvalidWebhookSignatureException ? $exception->getTimestamp() : null,
             ]);
 
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -79,8 +93,13 @@ class MercadoPagoWebhookController extends Controller
                 return response()->json(['error' => 'Plan or period not found'], 404);
             }
 
-            if (abs((float) $gatewayPayment->transaction_amount - (float) $period->price) > 0.01) {
-                Log::error('Valor divergente em pagamento Mercado Pago.', ['payment_id' => $paymentId]);
+            $expectedAmount = $this->expectedAmount((string) $gatewayPayment->id, $metadata, $period);
+            if (abs((float) $gatewayPayment->transaction_amount - $expectedAmount) > 0.01) {
+                Log::error('Valor divergente em pagamento Mercado Pago.', [
+                    'payment_id' => $paymentId,
+                    'expected' => $expectedAmount,
+                    'received' => (float) $gatewayPayment->transaction_amount,
+                ]);
 
                 return response()->json(['error' => 'Payment amount mismatch'], 422);
             }
@@ -105,6 +124,36 @@ class MercadoPagoWebhookController extends Controller
 
             return response()->json(['error' => 'Internal Server Error'], 500);
         }
+    }
+
+    private function timestampWithinTolerance(string $signature, int $toleranceSeconds): bool
+    {
+        if (! preg_match('/(?:^|,)\s*ts=(\d+)/i', $signature, $matches)) {
+            return false;
+        }
+
+        $timestamp = (int) $matches[1];
+        $timestampMs = strlen($matches[1]) >= 13 ? $timestamp : $timestamp * 1000;
+
+        return abs((int) (microtime(true) * 1000) - $timestampMs) <= $toleranceSeconds * 1000;
+    }
+
+    /**
+     * A cobrança Pix soma os módulos adicionais ao preço do período, então o
+     * valor esperado é o registrado na geração do Pix; sem registro local,
+     * recalcula com os adicionais ativos do tenant.
+     */
+    private function expectedAmount(string $paymentId, array $metadata, Period $period): float
+    {
+        $existing = Payment::where('payment_id', $paymentId)->first();
+        if ($existing) {
+            return (float) $existing->amount;
+        }
+
+        $tenant = Tenant::find($metadata['tenant_id']);
+        $addons = $tenant ? $this->tenantModules->activeAddonsFor($tenant, $period->interval_count) : [];
+
+        return (float) $period->price + array_sum(array_column($addons, 'amount'));
     }
 
     private function metadata(mixed $externalReference): ?array
