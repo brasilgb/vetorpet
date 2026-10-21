@@ -41,7 +41,7 @@ function paymentAccount(): array
 
 function signedWebhookHeaders(string $paymentId, string $secret): array
 {
-    $timestamp = (string) ((int) (microtime(true) * 1000));
+    $timestamp = (string) time();
     $requestId = (string) Str::uuid();
     $manifest = 'id:'.strtolower($paymentId).';request-id:'.$requestId.';ts:'.$timestamp.';';
 
@@ -323,7 +323,7 @@ test('signed webhook accepts the pix total that includes active addons', functio
     expect($tenant->fresh()->payment)->toBeTrue();
 });
 
-test('webhook accepts signature timestamp in seconds and rejects stale ones', function () {
+test('webhook rejects signatures older than the tolerance window', function () {
     config()->set('services.mercadopago.webhook_secret', 'webhook-secret');
     $signed = function (int $timestamp): array {
         $requestId = (string) Str::uuid();
@@ -335,6 +335,6 @@ test('webhook accepts signature timestamp in seconds and rejects stale ones', fu
 
     $this->postJson($url, ['type' => 'merchant_order'], $signed(time()))
         ->assertOk()->assertJson(['status' => 'ignored']);
-    $this->postJson($url, ['type' => 'merchant_order'], $signed((time() - 600) * 1000))
+    $this->postJson($url, ['type' => 'merchant_order'], $signed(time() - 600))
         ->assertUnauthorized();
 });

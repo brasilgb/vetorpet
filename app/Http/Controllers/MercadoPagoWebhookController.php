@@ -13,7 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use MercadoPago\Exceptions\InvalidWebhookSignatureException;
-use MercadoPago\Exceptions\SignatureFailureReason;
 use MercadoPago\Webhook\WebhookSignatureValidator;
 
 class MercadoPagoWebhookController extends Controller
@@ -48,16 +47,8 @@ class MercadoPagoWebhookController extends Controller
                 $request->header('x-request-id'),
                 $dataId,
                 $secret,
+                300,
             );
-
-            // O SDK assume "ts" em segundos, mas o Mercado Pago envia milissegundos;
-            // por isso a tolerância de 5 minutos é verificada aqui.
-            if (! $this->timestampWithinTolerance((string) $request->header('x-signature'), 300)) {
-                throw new InvalidWebhookSignatureException(
-                    SignatureFailureReason::TIMESTAMP_OUT_OF_TOLERANCE,
-                    $request->header('x-request-id'),
-                );
-            }
         } catch (InvalidWebhookSignatureException|\InvalidArgumentException $exception) {
             Log::warning('Assinatura inválida no webhook Mercado Pago.', [
                 'request_id' => $request->header('x-request-id'),
@@ -124,18 +115,6 @@ class MercadoPagoWebhookController extends Controller
 
             return response()->json(['error' => 'Internal Server Error'], 500);
         }
-    }
-
-    private function timestampWithinTolerance(string $signature, int $toleranceSeconds): bool
-    {
-        if (! preg_match('/(?:^|,)\s*ts=(\d+)/i', $signature, $matches)) {
-            return false;
-        }
-
-        $timestamp = (int) $matches[1];
-        $timestampMs = strlen($matches[1]) >= 13 ? $timestamp : $timestamp * 1000;
-
-        return abs((int) (microtime(true) * 1000) - $timestampMs) <= $toleranceSeconds * 1000;
     }
 
     /**
