@@ -338,3 +338,43 @@ test('webhook rejects signatures older than the tolerance window', function () {
     $this->postJson($url, ['type' => 'merchant_order'], $signed(time() - 600))
         ->assertUnauthorized();
 });
+
+test('payment within the grace period renews from the due date keeping the cycle day', function () {
+    [$plan, $period, $tenant] = paymentAccount();
+    $this->travelTo(now()->setDate(2026, 10, 22)->setTime(10, 0));
+    $tenant->update(['payment' => true, 'expiration_date' => '2026-10-20']);
+
+    $payment = Payment::create([
+        'tenant_id' => $tenant->id,
+        'plan_id' => $plan->id,
+        'period_id' => $period->id,
+        'payment_id' => 'mp-grace-1',
+        'amount' => 59.90,
+        'status' => 'pending',
+        'idempotency_key' => (string) Str::uuid(),
+    ]);
+
+    app(MercadoPagoService::class)->syncPaymentStatus($payment, (object) ['id' => 'mp-grace-1', 'status' => 'approved']);
+
+    expect($tenant->fresh()->expiration_date->toDateString())->toBe('2026-11-20');
+});
+
+test('payment after the grace period still renews from the due date', function () {
+    [$plan, $period, $tenant] = paymentAccount();
+    $this->travelTo(now()->setDate(2026, 10, 25)->setTime(10, 0));
+    $tenant->update(['payment' => true, 'expiration_date' => '2026-10-20']);
+
+    $payment = Payment::create([
+        'tenant_id' => $tenant->id,
+        'plan_id' => $plan->id,
+        'period_id' => $period->id,
+        'payment_id' => 'mp-blocked-1',
+        'amount' => 59.90,
+        'status' => 'pending',
+        'idempotency_key' => (string) Str::uuid(),
+    ]);
+
+    app(MercadoPagoService::class)->syncPaymentStatus($payment, (object) ['id' => 'mp-blocked-1', 'status' => 'approved']);
+
+    expect($tenant->fresh()->expiration_date->toDateString())->toBe('2026-11-20');
+});

@@ -85,9 +85,9 @@ class MercadoPagoService
                     return;
                 }
 
-                $base = $tenant->expiration_date && $tenant->expiration_date->isFuture()
-                    ? $tenant->expiration_date->copy()
-                    : now();
+                // O pagamento renova a partir do vencimento, mantendo o dia do ciclo,
+                // mesmo quando pago durante a carência ou depois do bloqueio.
+                $base = $tenant->expiration_date?->copy() ?? now();
 
                 $tenant->update([
                     'plan' => $plan->id,
@@ -96,7 +96,7 @@ class MercadoPagoService
                     'payment' => true,
                     'trial_ends_at' => null,
                     'status' => 1,
-                    'expiration_date' => $base->addMonths((int) $period->interval_count),
+                    'expiration_date' => $base->addMonthsNoOverflow((int) $period->interval_count),
                 ]);
 
                 $lockedPayment->update([
