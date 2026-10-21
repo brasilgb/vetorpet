@@ -517,7 +517,10 @@ class OrderController extends Controller
         $validated = $request->validate([
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'user_id' => ['nullable', Rule::exists('users', 'id')->where('tenant_id', $request->user()->tenant_id)],
         ]);
+        $canManageTeam = $request->user()->canManageTeam();
+        $userId = $canManageTeam ? ($validated['user_id'] ?? null) : null;
         $startDate = isset($validated['start_date'])
             ? Carbon::parse($validated['start_date'])->startOfDay()
             : now()->startOfMonth();
@@ -527,6 +530,7 @@ class OrderController extends Controller
         $orders = Order::visibleTo()
             ->with('customer.region', 'user')
             ->whereBetween('created_at', [$startDate, $endDate])
+            ->when($userId, fn ($query) => $query->where('user_id', $userId))
             ->latest()
             ->get();
 
@@ -535,7 +539,10 @@ class OrderController extends Controller
             'filters' => [
                 'start_date' => $startDate->toDateString(),
                 'end_date' => $endDate->toDateString(),
+                'user_id' => $userId ? (int) $userId : null,
             ],
+            'users' => $this->availableUsers($request),
+            'canManageTeam' => $canManageTeam,
         ]);
     }
     // public function orderDateReport($date)

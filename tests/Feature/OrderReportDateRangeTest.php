@@ -96,3 +96,63 @@ test('order report rejects an end date before the start date', function () {
         ->get(route('app.orders.report', ['start_date' => '2026-06-30', 'end_date' => '2026-06-01']))
         ->assertSessionHasErrors('end_date');
 });
+
+test('order report filters orders by seller', function () {
+    $tenant = Tenant::create([
+        'company' => 'Empresa relatório vendedor',
+        'cnpj' => '70000000000004',
+        'email' => 'empresa-relatorio-vendedor@example.com',
+        'status' => 1,
+        'payment' => true,
+        'expiration_date' => now()->addYear(),
+    ]);
+    $owner = User::withoutGlobalScopes()->create([
+        'tenant_id' => $tenant->id,
+        'name' => 'Gestor relatório vendedor',
+        'email' => 'gestor-relatorio-vendedor@example.com',
+        'password' => 'password',
+        'roles' => User::ROLE_OWNER,
+        'status' => true,
+    ]);
+    $seller = User::withoutGlobalScopes()->create([
+        'tenant_id' => $tenant->id,
+        'name' => 'Vendedor relatório',
+        'email' => 'vendedor-relatorio@example.com',
+        'password' => 'password',
+        'roles' => User::ROLE_SELLER,
+        'status' => true,
+    ]);
+    $customer = new Customer([
+        'user_id' => $owner->id,
+        'name' => 'Cliente relatório vendedor',
+        'cnpj' => '70000000000005',
+    ]);
+    $customer->tenant_id = $tenant->id;
+    $customer->save();
+
+    $orders = [];
+    foreach ([[$owner, 601], [$seller, 602]] as [$user, $number]) {
+        $order = new Order([
+            'user_id' => $user->id,
+            'customer_id' => $customer->id,
+            'order_number' => $number,
+            'total' => 100,
+            'status' => '1',
+        ]);
+        $order->tenant_id = $tenant->id;
+        $order->created_at = '2026-06-15 12:00:00';
+        $order->updated_at = '2026-06-15 12:00:00';
+        $order->save();
+        $orders[$number] = $order;
+    }
+
+    $this->actingAs($owner)
+        ->get(route('app.orders.report', ['start_date' => '2026-06-01', 'end_date' => '2026-06-30', 'user_id' => $seller->id]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('app/orders/order-reports')
+            ->where('filters.user_id', $seller->id)
+            ->where('canManageTeam', true)
+            ->has('orders', 1)
+            ->where('orders.0.id', $orders[602]->id));
+});

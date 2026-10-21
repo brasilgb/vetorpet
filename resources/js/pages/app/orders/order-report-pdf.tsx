@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
     },
     tableColHeader: {
-        width: "20%",
+        width: "16.66%",
         borderStyle: "solid",
         borderWidth: 1,
         borderLeftWidth: 0,
@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
         padding: 5,
     },
     tableCol: {
-        width: "20%",
+        width: "16.66%",
         borderStyle: "solid",
         borderWidth: 1,
         borderLeftWidth: 0,
@@ -70,13 +70,14 @@ const styles = StyleSheet.create({
     }
 });
 
-export default function OrderReportPDF({ data, startDate, endDate, summaryData }: any) {
+export default function OrderReportPDF({ data, startDate, endDate, summaryData, sellerName }: any) {
     return (
         <Document>
             <Page size="A4" style={styles.page}>
                 <View style={styles.header}>
                     <Text style={styles.title}>Relatório de Pedidos</Text>
                     <Text>Período: {moment(startDate).format('DD/MM/YYYY')} a {moment(endDate).format('DD/MM/YYYY')}</Text>
+                    <Text>Vendedor: {sellerName ?? 'Todos'}</Text>
                 </View>
 
                 <View style={styles.summary}>
@@ -89,6 +90,7 @@ export default function OrderReportPDF({ data, startDate, endDate, summaryData }
                     <View style={styles.tableRow}>
                         <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Nº Pedido</Text></View>
                         <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Cliente</Text></View>
+                        <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Vendedor</Text></View>
                         <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Flex</Text></View>
                         <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Desconto</Text></View>
                         <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Total</Text></View>
@@ -98,6 +100,7 @@ export default function OrderReportPDF({ data, startDate, endDate, summaryData }
                             <View style={styles.tableRow} key={order.id}>
                                 <View style={styles.tableCol}><Text style={styles.tableCell}>{order.order_number}</Text></View>
                                 <View style={styles.tableCol}><Text style={styles.tableCell}>{order?.customer?.name}</Text></View>
+                                <View style={styles.tableCol}><Text style={styles.tableCell}>{order?.user?.name ?? '-'}</Text></View>
                                 <View style={styles.tableCol}><Text style={styles.tableCell}>R$ {order.flex}</Text></View>
                                 <View style={styles.tableCol}><Text style={styles.tableCell}>R$ {order.discount}</Text></View>
                                 <View style={styles.tableCol}><Text style={styles.tableCell}>R$ {order.total}</Text></View>

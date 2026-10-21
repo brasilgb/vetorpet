@@ -65,9 +65,11 @@ export function Report({ orders, summaryData }: { orders: any[]; summaryData: an
     );
 }
 
-export default function OrderReports({ orders, filters }: any) {
+export default function OrderReports({ orders, filters, users = [], canManageTeam = false }: any) {
     const [startDate, setStartDate] = useState(filters.start_date);
     const [endDate, setEndDate] = useState(filters.end_date);
+    const [userId, setUserId] = useState(filters.user_id ? String(filters.user_id) : '');
+    const sellerName = useMemo(() => users.find((user: any) => user.id === filters.user_id)?.name ?? null, [users, filters.user_id]);
 
     const summaryData = useMemo(() => orders.reduce((summary: any, order: any) => ({
         flex: summary.flex + Number(order.flex ?? 0),
@@ -76,12 +78,12 @@ export default function OrderReports({ orders, filters }: any) {
     }), { flex: 0, discount: 0, total: 0 }), [orders]);
 
     const document = useMemo(() => (
-        <OrderReportPDF data={orders} startDate={filters.start_date} endDate={filters.end_date} summaryData={summaryData} />
-    ), [orders, filters.start_date, filters.end_date, summaryData]);
+        <OrderReportPDF data={orders} startDate={filters.start_date} endDate={filters.end_date} summaryData={summaryData} sellerName={sellerName} />
+    ), [orders, filters.start_date, filters.end_date, summaryData, sellerName]);
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
-        router.get(route('app.orders.report'), { start_date: startDate, end_date: endDate }, { preserveState: true, replace: true });
+        router.get(route('app.orders.report'), { start_date: startDate, end_date: endDate, user_id: userId || undefined }, { preserveState: true, replace: true });
     };
 
     return (
@@ -92,14 +94,14 @@ export default function OrderReports({ orders, filters }: any) {
                     <CalendarDaysIcon className="h-8 w-8" />
                     <div>
                         <h2 className="text-xl font-semibold tracking-tight">Relatório de pedidos</h2>
-                        <p className="text-sm text-muted-foreground">Consulte as vendas emitidas em um intervalo de datas.</p>
+                        <p className="text-sm text-muted-foreground">Consulte as vendas emitidas em um intervalo de datas e por vendedor.</p>
                     </div>
                 </div>
                 <Breadcrumbs breadcrumbs={breadcrumbs} />
             </div>
 
             <div className="m-4 flex flex-col gap-3 rounded-lg border p-4 lg:flex-row lg:items-end lg:justify-between">
-                <form onSubmit={submit} className="grid gap-3 sm:grid-cols-[180px_180px_auto]">
+                <form onSubmit={submit} className={`grid gap-3 ${canManageTeam ? 'sm:grid-cols-[180px_180px_200px_auto]' : 'sm:grid-cols-[180px_180px_auto]'}`}>
                     <div className="grid gap-2">
                         <Label htmlFor="start_date">Data inicial</Label>
                         <Input id="start_date" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
@@ -108,13 +110,22 @@ export default function OrderReports({ orders, filters }: any) {
                         <Label htmlFor="end_date">Data final</Label>
                         <Input id="end_date" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
                     </div>
+                    {canManageTeam && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="user_id">Vendedor</Label>
+                            <select id="user_id" className="flex h-9 rounded-md border border-input bg-transparent px-3 text-sm" value={userId} onChange={(event) => setUserId(event.target.value)}>
+                                <option value="">Todos</option>
+                                {users.map((user: any) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                            </select>
+                        </div>
+                    )}
                     <Button type="submit" className="self-end"><Search className="h-4 w-4" />Consultar</Button>
                 </form>
                 <div className="flex flex-col gap-2 sm:flex-row">
                     <Button variant="outline" asChild>
                         <Link href={route('app.orders.index')}><ArrowLeft className="h-4 w-4" />Voltar</Link>
                     </Button>
-                    <PDFDownloadLink document={document} fileName={`pedidos-${filters.start_date}-a-${filters.end_date}.pdf`}>
+                    <PDFDownloadLink document={document} fileName={`pedidos-${filters.start_date}-a-${filters.end_date}${filters.user_id ? `-vendedor-${filters.user_id}` : ''}.pdf`}>
                         {({ loading }) => (
                             <Button disabled={loading || orders.length === 0} className="w-full">
                                 <FileOutputIcon className="h-4 w-4" />{loading ? 'Gerando PDF...' : 'Gerar PDF'}
@@ -126,6 +137,7 @@ export default function OrderReports({ orders, filters }: any) {
 
             <div className="px-4 pb-3 text-sm text-muted-foreground">
                 Período: <strong className="text-foreground">{moment(filters.start_date).format('DD/MM/YYYY')} a {moment(filters.end_date).format('DD/MM/YYYY')}</strong>
+                {sellerName && <> · Vendedor: <strong className="text-foreground">{sellerName}</strong></>}
             </div>
             <Report orders={orders} summaryData={summaryData} />
         </AppLayout>
