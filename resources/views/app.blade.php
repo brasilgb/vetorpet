@@ -58,5 +58,10 @@
     </head>
     <body class="font-sans antialiased">
         @inertia
+        @if (request()->routeIs('home', 'privacy', 'terms', 'campaigns.public', 'catalog.public')
+            && preg_match('/^[A-Za-z0-9]{48}$/', (string) config('services.vetorchat.widget_key'))
+            && str_starts_with((string) config('services.vetorchat.script_url'), 'https://'))
+            <script src="{{ config('services.vetorchat.script_url') }}" data-widget-key="{{ config('services.vetorchat.widget_key') }}" data-product="vetorpet" async></script>
+        @endif
     </body>
 </html>
